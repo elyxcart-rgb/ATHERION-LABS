@@ -113,7 +113,7 @@ class UpdateProgress:
 class UpdateManager:
     """Core update manager — state machine + operations."""
 
-    MANIFEST_URL = "https://raw.githubusercontent.com/sonic-ai/sonic-ai/main/releases/stable.json"
+    MANIFEST_URL = "MANIFEST_URL: str = "https://raw.githubusercontent.com/elyxcart-rgb/ATHERION-LABS/main/releases/stable.json"
     CHECK_INTERVAL_HOURS = 6  # don't check more often than this
 
     def __init__(self) -> None:
