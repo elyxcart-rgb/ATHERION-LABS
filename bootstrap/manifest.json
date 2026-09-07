@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "app_name": "SONIC AI",
+  "app_version": "1.0.0",
+  "min_windows_build": 17763,
+  "min_disk_space_mb": 300,
+  "requirements": [
+    {
+      "id": "vc_redist_x64",
+      "name": "Microsoft Visual C++ Redistributable 2015-2022",
+      "category": "system",
+      "required": true,
+      "bundled": true,
+      "detect_command": "check_vc_redist",
+      "install_method": "bundled",
+      "description": "Core C++ runtime libraries"
+    },
+    {
+      "id": "portaudio",
+      "name": "PortAudio Audio Library",
+      "category": "audio",
+      "required": true,
+      "bundled": true,
+      "detect_command": "check_portaudio",
+      "install_method": "bundled",
+      "description": "Audio input/output engine"
+    },
+    {
+      "id": "python_runtime",
+      "name": "Python Runtime",
+      "category": "runtime",
+      "required": true,
+      "bundled": true,
+      "detect_command": "check_python_runtime",
+      "install_method": "bundled",
+      "description": "Python execution environment"
+    },
+    {
+      "id": "qt_runtime",
+      "name": "Qt6 Runtime",
+      "category": "gui",
+      "required": true,
+      "bundled": true,
+      "detect_command": "check_qt_runtime",
+      "install_method": "bundled",
+      "description": "GUI framework runtime"
+    },
+    {
+      "id": "mic_check",
+      "name": "Microphone",
+      "category": "hardware",
+      "required": true,
+      "bundled": false,
+      "detect_command": "check_microphone",
+      "install_method": "manual",
+      "description": "Audio input device for voice commands"
+    },
+    {
+      "id": "speaker_check",
+      "name": "Speakers / Audio Output",
+      "category": "hardware",
+      "required": true,
+      "bundled": false,
+      "detect_command": "check_speakers",
+      "install_method": "manual",
+      "description": "Audio output device for voice responses"
+    },
+    {
+      "id": "internet_check",
+      "name": "Internet Connection",
+      "category": "network",
+      "required": true,
+      "bundled": false,
+      "detect_command": "check_internet",
+      "install_method": "manual",
+      "description": "Required for Gemini AI and web features"
+    },
+    {
+      "id": "disk_space",
+      "name": "Disk Space",
+      "category": "system",
+      "required": true,
+      "bundled": false,
+      "detect_command": "check_disk_space",
+      "install_method": "manual",
+      "description": "Minimum 300 MB free disk space"
+    },
+    {
+      "id": "playwright_chromium",
+      "name": "Playwright Chromium Browser",
+      "category": "optional",
+      "required": false,
+      "bundled": false,
+      "detect_command": "check_playwright",
+      "install_method": "pip_and_playwright_install",
+      "install_args": ["playwright", "install", "chromium"],
+      "download_size_mb": 150,
+      "description": "Browser automation (click, type, fill forms)"
+    },
+    {
+      "id": "ffmpeg",
+      "name": "FFmpeg Multimedia Framework",
+      "category": "optional",
+      "required": false,
+      "bundled": false,
+      "detect_command": "check_ffmpeg",
+      "install_method": "manual_path",
+      "download_url": "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip",
+      "description": "Video/audio processing (trim, compress, convert)"
+    },
+    {
+      "id": "vlc",
+      "name": "VLC Media Player",
+      "category": "optional",
+      "required": false,
+      "bundled": false,
+      "detect_command": "check_vlc",
+      "install_method": "manual",
+      "description": "Startup intro video playback"
+    },
+    {
+      "id": "opencode",
+      "name": "OpenCode AI Coding Agent",
+      "category": "optional",
+      "required": false,
+      "bundled": false,
+      "detect_command": "check_opencode",
+      "install_method": "npm_global",
+      "install_args": ["npm", "install", "-g", "opencode"],
+      "description": "AI-powered code generation and editing"
+    }
+  ]
+}

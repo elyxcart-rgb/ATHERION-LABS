@@ -1,0 +1,41 @@
+SONIC AI - End User License Agreement (EULA)
+
+IMPORTANT - READ CAREFULLY: This End User License Agreement ("Agreement") is a legal agreement between you ("User") and SONIC AI ("Licensor") for the use of SONIC AI software ("Software").
+
+By installing, copying, or using this Software, you agree to be bound by the terms of this Agreement.
+
+1. LICENSE GRANT
+   Licensor grants you a non-exclusive, non-transferable, limited license to install and use one copy of the Software on a single computer for your personal or internal business use.
+
+2. RESTRICTIONS
+   You may NOT:
+   - Sell, distribute, or sublicense the Software to third parties
+   - Reverse engineer, decompile, or disassemble the Software
+   - Remove or alter any proprietary notices on the Software
+   - Use the Software for any unlawful purpose
+
+3. INTELLECTUAL PROPERTY
+   The Software and all intellectual property rights therein are and remain the exclusive property of Licensor. This Agreement does not convey any ownership rights.
+
+4. DATA COLLECTION
+   The Software may collect usage data to improve user experience. All data collection complies with applicable privacy laws.
+
+5. THIRD-PARTY SERVICES
+   The Software uses third-party services (Google Gemini, Firebase). Your use of these services is subject to their respective terms of service.
+
+6. DISCLAIMER OF WARRANTIES
+   THE SOFTWARE IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+7. LIMITATION OF LIABILITY
+   IN NO EVENT SHALL LICENSOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING OUT OF OR RELATED TO THE USE OF THE SOFTWARE.
+
+8. TERMINATION
+   This Agreement is effective until terminated. Licensor may terminate this Agreement at any time if you fail to comply with any term of this Agreement.
+
+9. GOVERNING LAW
+   This Agreement shall be governed by and construed in accordance with the laws of the jurisdiction in which Licensor operates.
+
+10. ENTIRE AGREEMENT
+    This Agreement constitutes the entire agreement between the parties with respect to the subject matter hereof.
+
+Copyright (c) 2026 SONIC AI. All rights reserved.

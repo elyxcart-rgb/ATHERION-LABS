@@ -1,0 +1,47 @@
+# ── Secrets — never commit ───────────────────────────────────────────────
+config/api_keys.json
+config/certs/
+*.pem
+*.key
+
+# ── Auth / user data — NEVER commit ─────────────────────────────────────
+auth/.session.json
+auth/.profile.json
+auth/.onboarding.json
+auth/.local_users.json
+auth/.google_credentials.json
+auth/firebase_config.json
+
+# ── Memory / database ───────────────────────────────────────────────────
+memory/*.json
+memory/*.db
+memory/*.db-wal
+memory/*.db-shm
+memory/sonic_brain.db
+
+# ── Build / EXE / Installer (too large for GitHub) ──────────────────────
+dist/
+build/
+installer_output/
+*.exe
+*.pkg
+*.pyz
+
+# ── Python ───────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# ── Runtime state ────────────────────────────────────────────────────────
+*.log
+*.old
+
+# ── Editor / OS ──────────────────────────────────────────────────────────
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+*.bak
