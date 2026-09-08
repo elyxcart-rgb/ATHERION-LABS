@@ -1,14 +1,14 @@
 {
   "app": "SONIC AI",
   "channel": "stable",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "minimum_supported_version": "1.0.0",
   "release_date": "2026-09-07",
   "mandatory": false,
-  "title": "SONIC AI v1.0.0",
-  "summary": "First release of SONIC AI desktop assistant",
+  "title": "SONIC AI v1.0.1",
+  "summary": "Bug fixes and improvements",
   "download_url": "https://github.com/elyxcart-rgb/ATHERION-LABS/releases/download/v1.0.0/SONIC-AI-Setup-1.0.0.exe",
   "sha256": "abc123",
   "size_bytes": 270000000,
-  "release_notes": "First release of SONIC AI - Voice assistant with memory, emotions, and auto-updates"
+  "release_notes": "Bug fixes and improvements"
 }
