@@ -26,6 +26,7 @@ import tempfile
 import time
 import zipfile
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable
@@ -113,7 +114,7 @@ class UpdateProgress:
 class UpdateManager:
     """Core update manager — state machine + operations."""
 
-    MANIFEST_URL = "MANIFEST_URL: str = "https://raw.githubusercontent.com/elyxcart-rgb/ATHERION-LABS/main/releases/stable.json"
+    MANIFEST_URL = "https://raw.githubusercontent.com/elyxcart-rgb/ATHERION-LABS/main/releases/stable.json"
     CHECK_INTERVAL_HOURS = 6  # don't check more often than this
 
     def __init__(self) -> None:
@@ -397,11 +398,14 @@ class UpdateManager:
             self._set_state(UpdateState.FAILED, error=f"Backup failed: {e}")
             return None
 
-    # ── Install (direct EXE swap) ────────────────────────────────────────
+    # ── Install (uses updater helper for safe replacement) ────────────────
 
     def install_update(self, zip_path: Path, backup_path: Path) -> bool:
-        """Stage update and swap EXE directly."""
+        """Stage update and launch updater helper for safe replacement."""
         self._set_state(UpdateState.WAITING_TO_INSTALL, "Ready to install. App will restart.")
+
+        # Write update journal for crash recovery
+        self._write_update_journal(zip_path, backup_path)
 
         # Extract zip to staging
         extract_dir = _STAGING_DIR / "extracted"
@@ -447,22 +451,60 @@ class UpdateManager:
         logger.info("[UPDATER] Target EXE: %s", target_exe)
         logger.info("[UPDATER] New EXE: %s", new_exe)
 
-        # Direct swap: rename old -> copy new -> launch new -> exit
+        # Find or build updater helper
+        updater_helper = self._find_updater_helper()
+        if not updater_helper:
+            logger.warning("[UPDATER] Updater helper not found — using direct swap fallback")
+            return self._direct_exe_swap(new_exe, target_exe, backup_path)
+
+        # Launch updater helper
+        try:
+            cmd = [
+                str(updater_helper),
+                str(new_exe),
+                str(target_exe),
+                str(backup_path),
+            ]
+            logger.info("[UPDATER] Launching updater helper: %s", cmd)
+
+            subprocess.Popen(
+                cmd,
+                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+                close_fds=True,
+            )
+
+            self._set_state(UpdateState.INSTALLING, "Update installed. Restarting...")
+            return True
+
+        except Exception as e:
+            logger.error("[UPDATER] Failed to launch updater helper: %s", e)
+            return self._direct_exe_swap(new_exe, target_exe, backup_path)
+
+    def _find_updater_helper(self) -> Path | None:
+        """Find the updater helper executable."""
+        candidates = [
+            _APP_DIR / "SONIC-Updater.exe",
+            _APP_DIR.parent / "SONIC-Updater.exe",
+            _APP_DIR / "updater" / "SONIC-Updater.exe",
+        ]
+        for p in candidates:
+            if p.exists():
+                return p
+        return None
+
+    def _direct_exe_swap(self, new_exe: Path, target_exe: Path, backup_path: Path) -> bool:
+        """Direct EXE swap fallback when updater helper is not available."""
         try:
             old_exe = target_exe.with_suffix(".exe.old")
-            # Remove any leftover .old from previous failed attempts
             if old_exe.exists():
                 old_exe.unlink(missing_ok=True)
 
-            # Rename running EXE (works on Windows even while running)
             target_exe.rename(old_exe)
             logger.info("[UPDATER] Renamed old EXE to %s", old_exe.name)
 
-            # Copy new EXE to target location
             shutil.copy2(new_exe, target_exe)
             logger.info("[UPDATER] Copied new EXE to %s", target_exe)
 
-            # Launch new EXE
             subprocess.Popen(
                 [str(target_exe)],
                 creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
@@ -474,8 +516,7 @@ class UpdateManager:
             return True
 
         except Exception as e:
-            logger.error("[UPDATER] Install failed: %s", e)
-            # Try rollback
+            logger.error("[UPDATER] Direct swap failed: %s", e)
             try:
                 if old_exe.exists() and not target_exe.exists():
                     old_exe.rename(target_exe)
@@ -484,6 +525,50 @@ class UpdateManager:
                 pass
             self._set_state(UpdateState.FAILED, error=f"Install failed: {e}")
             return False
+
+    def _write_update_journal(self, zip_path: Path, backup_path: Path) -> None:
+        """Write update journal for crash recovery."""
+        journal = {
+            "update_attempt_id": f"{int(time.time())}",
+            "source_version": self._get_current_version(),
+            "target_version": self.manifest.version if self.manifest else "unknown",
+            "stage": "installing",
+            "timestamp": datetime.now().isoformat(),
+            "zip_path": str(zip_path),
+            "backup_path": str(backup_path),
+        }
+        journal_path = _UPDATES_DIR / "update_journal.json"
+        try:
+            journal_path.write_text(json.dumps(journal, indent=2), encoding="utf-8")
+            logger.info("[UPDATER] Update journal written: %s", journal_path)
+        except Exception as e:
+            logger.warning("[UPDATER] Failed to write journal: %s", e)
+
+    def _get_current_version(self) -> str:
+        """Get current app version."""
+        try:
+            from version import APP_VERSION
+            return APP_VERSION
+        except Exception:
+            return "unknown"
+
+    def check_incomplete_update(self) -> bool:
+        """Check for incomplete update from previous session."""
+        journal_path = _UPDATES_DIR / "update_journal.json"
+        if not journal_path.exists():
+            return False
+
+        try:
+            journal = json.loads(journal_path.read_text(encoding="utf-8"))
+            if journal.get("stage") == "installing":
+                logger.info("[UPDATER] Found incomplete update from previous session")
+                # Try to recover or clean up
+                journal_path.unlink(missing_ok=True)
+                return True
+        except Exception:
+            pass
+
+        return False
 
     # ── Rollback ─────────────────────────────────────────────────────────
 

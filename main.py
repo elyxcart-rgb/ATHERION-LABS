@@ -81,6 +81,13 @@ from actions.screen_processor  import _capture_camera, _capture_screen
 from actions.youtube_video     import youtube_video
 from actions.desktop           import desktop_control
 
+# ── New Features ──────────────────────────────────────────────────────────
+from actions.squad_agent       import squad_mode
+from actions.recipe_engine     import recipe_engine
+from actions.hologram_mode     import hologram_mode
+from actions.voice_shortcut    import voice_shortcut
+from actions.smart_clipboard   import smart_clipboard
+
 # Location awareness
 from location import LocationContext
 
@@ -890,6 +897,180 @@ TOOL_DECLARATIONS = [
             "required": ["action"],
         },
     },
+    # ── Squad Mode (Multi-Agent Parallel Tasks) ───────────────────────────
+    {
+        "name": "squad_mode",
+        "description": (
+            "Execute multiple tasks in parallel using sub-agents. "
+            "Use when the user asks for multiple things at once, like "
+            "'research X, check Y, and find Z' or 'do these 3 things simultaneously'. "
+            "Maximum 5 parallel tasks. Each task runs independently and results are combined."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "tasks": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "description": "List of tasks to execute in parallel (max 5)",
+                },
+                "context": {
+                    "type": "STRING",
+                    "description": "Optional context or description of the overall goal",
+                },
+                "timeout_per_task": {
+                    "type": "INTEGER",
+                    "description": "Timeout per task in seconds (default: 60)",
+                },
+            },
+            "required": ["tasks"],
+        },
+    },
+    # ── Recipe Engine (Automated Workflows) ──────────────────────────────
+    {
+        "name": "recipe_engine",
+        "description": (
+            "Create, manage, and execute automated multi-step workflows (recipes). "
+            "Use when the user wants to save a sequence of actions to reuse later, "
+            "like 'remember this as a recipe' or 'create a morning routine'. "
+            "Actions: create, delete, run, list, get."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "Action: create | delete | run | list | get",
+                },
+                "name": {"type": "STRING", "description": "Recipe name"},
+                "description": {"type": "STRING", "description": "Recipe description"},
+                "steps": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "tool_name": {"type": "STRING"},
+                            "parameters": {"type": "OBJECT"},
+                            "description": {"type": "STRING"},
+                            "delay_after": {"type": "NUMBER"},
+                        },
+                    },
+                    "description": "Steps to include in the recipe (for create)",
+                },
+                "tags": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "description": "Tags for categorizing recipes",
+                },
+                "variables": {
+                    "type": "OBJECT",
+                    "description": "Variables to pass during execution (for run)",
+                },
+            },
+            "required": ["action"],
+        },
+    },
+    # ── Hologram Mode (Screen Annotation) ────────────────────────────────
+    {
+        "name": "hologram_mode",
+        "description": (
+            "Draw annotations directly on the user's screen. "
+            "Use to highlight UI elements, draw arrows, circle items, "
+            "overlay text labels, or spotlight specific areas. "
+            "Annotations auto-clear after a few seconds. "
+            "Actions: annotate (draw), clear (remove all)."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "Action: annotate | clear",
+                },
+                "type": {
+                    "type": "STRING",
+                    "description": "Annotation type: arrow | circle | rectangle | text | highlight | spotlight",
+                },
+                "x1": {"type": "NUMBER", "description": "Start X / Center X coordinate"},
+                "y1": {"type": "NUMBER", "description": "Start Y / Center Y coordinate"},
+                "x2": {"type": "NUMBER", "description": "End X / Radius (for spotlight)"},
+                "y2": {"type": "NUMBER", "description": "End Y coordinate"},
+                "text": {"type": "STRING", "description": "Text to display (for text type)"},
+                "color": {"type": "STRING", "description": "Color hex code (default: #00d4ff)"},
+                "duration": {"type": "NUMBER", "description": "Auto-clear duration in seconds (default: 5)"},
+                "font_size": {"type": "INTEGER", "description": "Font size for text (default: 18)"},
+            },
+            "required": ["action"],
+        },
+    },
+    # ── Voice Shortcuts ──────────────────────────────────────────────────
+    {
+        "name": "voice_shortcut",
+        "description": (
+            "Create and manage custom voice shortcuts. "
+            "Use when the user wants to create a shortcut like "
+            "'when I say focus mode, mute volume' or 'save this as a shortcut'. "
+            "Actions: add, remove, list, match."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "Action: add | remove | list | match",
+                },
+                "trigger": {
+                    "type": "STRING",
+                    "description": "The voice phrase that triggers the shortcut",
+                },
+                "tool_name": {
+                    "type": "STRING",
+                    "description": "Tool to execute when triggered",
+                },
+                "parameters": {
+                    "type": "OBJECT",
+                    "description": "Parameters to pass to the tool",
+                },
+                "description": {"type": "STRING", "description": "Shortcut description"},
+                "aliases": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "description": "Alternative trigger phrases",
+                },
+                "text": {"type": "STRING", "description": "Text to match against shortcuts (for match)"},
+            },
+            "required": ["action"],
+        },
+    },
+    # ── Smart Clipboard ──────────────────────────────────────────────────
+    {
+        "name": "smart_clipboard",
+        "description": (
+            "Enhanced clipboard with history, content detection, and smart operations. "
+            "Use when the user wants to search clipboard history, pin items, "
+            "get clipboard stats, or work with copied content. "
+            "Auto-detects content types: url, code, json, email, youtube, etc."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": (
+                        "Action: add | get_recent | search | pin | unpin | pinned | "
+                        "stats | by_type | clear"
+                    ),
+                },
+                "content": {"type": "STRING", "description": "Content to add (for add)"},
+                "source": {"type": "STRING", "description": "Content source (for add)"},
+                "count": {"type": "INTEGER", "description": "Number of recent items (for get_recent)"},
+                "query": {"type": "STRING", "description": "Search query (for search)"},
+                "index": {"type": "INTEGER", "description": "Entry index (for pin/unpin)"},
+                "type": {"type": "STRING", "description": "Content type filter (for by_type)"},
+            },
+            "required": ["action"],
+        },
+    },
 ]
 
 class _ReconnectSignal(Exception):
@@ -1578,6 +1759,46 @@ class SonicLive:
                 r = await asyncio.wait_for(
                     loop.run_in_executor(self._tool_executor, lambda: _dispatch_system_controls(action, args)),
                     timeout=15
+                )
+                result = r
+
+            # ── Squad Mode (Multi-Agent Parallel Tasks) ───────────────────
+            elif name == "squad_mode":
+                r = await asyncio.wait_for(
+                    squad_mode(parameters=args, tool_executor=self._tool_executor),
+                    timeout=120
+                )
+                result = r
+
+            # ── Recipe Engine (Automated Workflows) ──────────────────────
+            elif name == "recipe_engine":
+                r = await asyncio.wait_for(
+                    recipe_engine(parameters=args, tool_executor=self._tool_executor),
+                    timeout=60
+                )
+                result = r
+
+            # ── Hologram Mode (Screen Annotation) ────────────────────────
+            elif name == "hologram_mode":
+                r = await asyncio.wait_for(
+                    hologram_mode(parameters=args),
+                    timeout=10
+                )
+                result = r
+
+            # ── Voice Shortcuts ───────────────────────────────────────────
+            elif name == "voice_shortcut":
+                r = await asyncio.wait_for(
+                    voice_shortcut(parameters=args, tool_executor=self._tool_executor),
+                    timeout=15
+                )
+                result = r
+
+            # ── Smart Clipboard ───────────────────────────────────────────
+            elif name == "smart_clipboard":
+                r = await asyncio.wait_for(
+                    smart_clipboard(parameters=args),
+                    timeout=10
                 )
                 result = r
 

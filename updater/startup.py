@@ -28,6 +28,11 @@ def check_for_updates_on_startup(ui: "SonicUI") -> None:
             from updater.ui import UpdatePopup
 
             manager = get_update_manager()
+
+            # Check for incomplete update from previous session
+            if manager.check_incomplete_update():
+                logger.info("[UPDATER] Resolved incomplete update from previous session")
+
             settings = manager.get_settings()
 
             if not settings.get("auto_check", True):

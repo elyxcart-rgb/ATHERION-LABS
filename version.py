@@ -1,17 +1,8 @@
-"""SONIC AI — Single authoritative version declaration.
-
-Every part of the application must import from here.
-Never hardcode version strings elsewhere.
-"""
-
-from __future__ import annotations
-
-# ── Semantic version (major.minor.patch) ────────────────────────────────────
-APP_VERSION: str = "1.0.0"
+"1.0.1"
 
 # ── Build metadata (set by CI / build script) ───────────────────────────────
-BUILD_VERSION: str = "1.0.0+build.0"
-BUILD_DATE: str = "2026-09-07"
+BUILD_VERSION: str = "1.0.1+build.1788866837"
+BUILD_DATE: str = "2026-09-08"
 
 # ── Application identity ─────────────────────────────────────────────────────
 APP_NAME: str = "SONIC AI"
