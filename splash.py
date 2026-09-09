@@ -267,7 +267,7 @@ class SonicSplash(QWidget):
         # ═══════════════════════════════════════════════════════════════════
         # Outer ring (slow)
         ring1_pen = QPen(QColor(0, 200, 255, int(60 + self._pulse * 40)))
-        ring1_pen.setWidth(1.5)
+        ring1_pen.setWidth(2)
         painter.setPen(ring1_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         r1 = 70
@@ -286,7 +286,7 @@ class SonicSplash(QWidget):
 
         # Inner ring (fast)
         ring3_pen = QPen(QColor(0, 240, 255, int(100 + self._pulse * 60)))
-        ring3_pen.setWidth(2.5)
+        ring3_pen.setWidth(3)
         ring3_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(ring3_pen)
         r3 = 42
