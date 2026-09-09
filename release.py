@@ -299,7 +299,7 @@ def step_github_release(version: str, installer: Path, sha256: str) -> bool:
 - Bug fixes and stability improvements
 
 ### Installation
-1. Download `SONIC-AI-Setup-{version}.exe`
+1. Download `SONIC-AI-Setup.exe`
 2. Run the installer
 3. Follow the setup wizard
 
