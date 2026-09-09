@@ -3003,7 +3003,20 @@ def main():
     except Exception as e:
         print(f"[BOOTSTRAP] Skipped: {e}")
 
-    # ── Create main window ──────────────────────────────────────────────
+    # ── Splash screen ─────────────────────────────────────────────────────
+    from splash import SonicSplash
+
+    _splash_done = False
+
+    def _on_splash_done():
+        nonlocal _splash_done
+        _splash_done = True
+        _splash.close()
+        _show_main_window()
+
+    _splash = SonicSplash(on_done=_on_splash_done)
+
+    # ── Create main window (hidden initially) ─────────────────────────────
     from PyQt6.QtWidgets import QMainWindow
     from PyQt6.QtGui import QGuiApplication, QIcon
     from pathlib import Path
@@ -3025,85 +3038,93 @@ def main():
         (_screen.height() - 900) // 2,
     )
 
-    # ── Init memory + create UI directly ──────────────────────────────────
-    init_memory_system()
-    ui = SonicUI("face.png")
-    _frame.setCentralWidget(ui._win)
-    _frame.show()
-    print("[SONIC] App loaded")
+    # ── Show splash screen ────────────────────────────────────────────────
+    _splash.show()
+    _splash.move(
+        (_screen.width() - 480) // 2,
+        (_screen.height() - 640) // 2,
+    )
 
-    # ── Startup update check (background, non-blocking) ────────────────────
-    try:
-        from updater.startup import check_for_updates_on_startup
-        check_for_updates_on_startup(ui)
-    except Exception as e:
-        print(f"[UPDATER] Startup check skipped: {e}")
+    def _show_main_window():
+        # ── Init memory + create UI directly ──────────────────────────────
+        init_memory_system()
+        ui = SonicUI("face.png")
+        _frame.setCentralWidget(ui._win)
+        _frame.show()
+        print("[SONIC] App loaded")
 
-    # ── Wire bridges ──────────────────────────────────────────────────────
-    def _on_auth_completed():
+        # ── Startup update check (background, non-blocking) ────────────────
         try:
-            from auth.core import get_auth
-            auth = get_auth()
-            uid = auth.user_id
-            if uid:
-                set_user_id(uid)
-                print(f"[Memory] Auth completed — user_id: {uid}")
-                try:
-                    from memory.memory_manager import remember, recall_memory
-                    profile = auth.get_extended_profile().get("profile", {})
-                    if profile.get("full_name"):
-                        remember("name", profile["full_name"], "identity")
-                    if profile.get("location"):
-                        remember("city", profile["location"], "identity")
-                        _location.set_saved_city(profile["location"])
-                    _location.set_user(uid)
-                    _location.load_from_profile(profile)
-                    city_result = recall_memory("city")
-                    if city_result and "city" in city_result.lower():
-                        import re
-                        match = re.search(r"city[:\s]+(\w+)", city_result, re.IGNORECASE)
-                        if match:
-                            _location.load_from_memory(match.group(1))
-                except Exception:
-                    pass
-                try:
-                    from memory.cloud_sync import on_login
-                    pull_stats = on_login(uid)
-                    if pull_stats:
-                        print(f"[CloudSync] Pulled: {pull_stats}")
-                except Exception as e:
-                    print(f"[CloudSync] Login sync error: {e}")
+            from updater.startup import check_for_updates_on_startup
+            check_for_updates_on_startup(ui)
         except Exception as e:
-            print(f"[Memory] Auth bridge error: {e}")
+            print(f"[UPDATER] Startup check skipped: {e}")
 
-    ui.auth_completed.connect(_on_auth_completed)
+        # ── Wire bridges ──────────────────────────────────────────────────
+        def _on_auth_completed():
+            try:
+                from auth.core import get_auth
+                auth = get_auth()
+                uid = auth.user_id
+                if uid:
+                    set_user_id(uid)
+                    print(f"[Memory] Auth completed — user_id: {uid}")
+                    try:
+                        from memory.memory_manager import remember, recall_memory
+                        profile = auth.get_extended_profile().get("profile", {})
+                        if profile.get("full_name"):
+                            remember("name", profile["full_name"], "identity")
+                        if profile.get("location"):
+                            remember("city", profile["location"], "identity")
+                            _location.set_saved_city(profile["location"])
+                        _location.set_user(uid)
+                        _location.load_from_profile(profile)
+                        city_result = recall_memory("city")
+                        if city_result and "city" in city_result.lower():
+                            import re
+                            match = re.search(r"city[:\s]+(\w+)", city_result, re.IGNORECASE)
+                            if match:
+                                _location.load_from_memory(match.group(1))
+                    except Exception:
+                        pass
+                    try:
+                        from memory.cloud_sync import on_login
+                        pull_stats = on_login(uid)
+                        if pull_stats:
+                            print(f"[CloudSync] Pulled: {pull_stats}")
+                    except Exception as e:
+                        print(f"[CloudSync] Login sync error: {e}")
+            except Exception as e:
+                print(f"[Memory] Auth bridge error: {e}")
 
-    def _runner():
-        ui.wait_for_api_key()
-        try:
-            from auth.core import get_auth
-            auth = get_auth()
-            session = auth.restore_session()
-            if session and isinstance(session, dict) and session.get("user_id"):
-                uid = session["user_id"]
-                set_user_id(uid)
-                print(f"[Memory] Restored session: {session.get('email', 'unknown')}")
-                try:
-                    from memory.cloud_sync import on_login
-                    on_login(uid)
-                except Exception:
-                    pass
-        except Exception as e:
-            print(f"[Memory] No auth session: {e}")
+        ui.auth_completed.connect(_on_auth_completed)
 
-        sonic = SonicLive(ui)
-        ui._win._sonic_live = sonic
-        try:
-            asyncio.run(sonic.run())
-        except KeyboardInterrupt:
-            print("\nShutting down...")
+        def _runner():
+            ui.wait_for_api_key()
+            try:
+                from auth.core import get_auth
+                auth = get_auth()
+                session = auth.restore_session()
+                if session and isinstance(session, dict) and session.get("user_id"):
+                    uid = session["user_id"]
+                    set_user_id(uid)
+                    print(f"[Memory] Restored session: {session.get('email', 'unknown')}")
+                    try:
+                        from memory.cloud_sync import on_login
+                        on_login(uid)
+                    except Exception:
+                        pass
+            except Exception as e:
+                print(f"[Memory] No auth session: {e}")
 
-    threading.Thread(target=_runner, daemon=True).start()
+            sonic = SonicLive(ui)
+            ui._win._sonic_live = sonic
+            try:
+                asyncio.run(sonic.run())
+            except KeyboardInterrupt:
+                print("\nShutting down...")
+
+        threading.Thread(target=_runner, daemon=True).start()
 
     # ── Run event loop ────────────────────────────────────────────────────
     _app.exec()
