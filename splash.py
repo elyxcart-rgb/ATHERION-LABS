@@ -206,7 +206,7 @@ class SonicSplash(QWidget):
         # ═══════════════════════════════════════════════════════════════════
         grid_alpha = int(15 + self._pulse * 10)
         grid_pen = QPen(QColor(0, 180, 255, grid_alpha))
-        grid_pen.setWidth(0.5)
+        grid_pen.setWidth(1)
 
         # Horizontal grid lines
         for i in range(0, h, 40):
@@ -410,7 +410,7 @@ class SonicSplash(QWidget):
         # ═══════════════════════════════════════════════════════════════════
         line_alpha = int(40 + self._pulse * 20)
         line_pen = QPen(QColor(0, 180, 255, line_alpha))
-        line_pen.setWidth(0.5)
+        line_pen.setWidth(1)
 
         # Left line
         painter.setPen(line_pen)
