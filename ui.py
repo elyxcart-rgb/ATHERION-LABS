@@ -4095,7 +4095,6 @@ class MainWindow(QMainWindow):
         from PyQt6.QtWidgets import QMessageBox
         try:
             from updater import get_update_manager
-            from updater.ui import UpdatePopup
             from version import APP_VERSION
 
             manager = get_update_manager()
@@ -4104,12 +4103,13 @@ class MainWindow(QMainWindow):
             if manifest is None:
                 QMessageBox.information(
                     self, "SONIC AI",
-                    f"No update found.\nLocal: v{APP_VERSION}\nManifest URL: {manager.MANIFEST_URL}"
+                    f"You're up to date!\nCurrent version: v{APP_VERSION}"
                 )
                 return
 
+            from updater.ui import UpdatePopup
             popup = UpdatePopup(manifest, parent=self)
-            popup.exec()
+            popup.show()
         except ImportError:
             QMessageBox.information(
                 self, "SONIC AI",

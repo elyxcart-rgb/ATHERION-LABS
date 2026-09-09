@@ -1,13 +1,28 @@
-"1.0.1"
+"""SONIC AI — Single authoritative version declaration.
 
-# ── Build metadata (set by CI / build script) ───────────────────────────────
-BUILD_VERSION: str = "1.0.1+build.1788866837"
-BUILD_DATE: str = "2026-09-08"
+Every part of the application must import from here.
+Never hardcode version strings elsewhere.
+The updater fetches release info from GitHub API — no hardcoded update URLs here.
+"""
+from __future__ import annotations
 
-# ── Application identity ─────────────────────────────────────────────────────
+# ── Semantic version (major.minor.patch) ────────────────────────────────────
+APP_VERSION: str = "1.0.0"
+
+# ── Build metadata (set by release.py) ──────────────────────────────────────
+BUILD_VERSION: str = "1.0.0+build.0"
+BUILD_DATE: str = "2026-09-09"
+
+# ── Application identity ────────────────────────────────────────────────────
 APP_NAME: str = "SONIC AI"
 APP_ID: str = "sonic-ai"
 APP_CHANNEL: str = "stable"  # stable | beta | dev
+
+# ── Schema version for data migrations ──────────────────────────────────────
+APP_SCHEMA_VERSION: int = 1
+
+# ── GitHub release source ───────────────────────────────────────────────────
+GITHUB_REPO: str = "elyxcart-rgb/ATHERION-LABS"
 
 # ── Semantic version comparison ──────────────────────────────────────────────
 

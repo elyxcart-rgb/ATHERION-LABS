@@ -1,325 +1,336 @@
-"""SONIC AI — Update Popup UI.
+"""SONIC AI — Update UI Components
 
-Polished PyQt6 notification for available updates.
-Shows: version info, release notes, progress bar, download status.
+UpdatePopup: Shows available update info with Update Now / Later buttons
+DownloadProgressDialog: Shows download progress, verification, install trigger
 """
 from __future__ import annotations
 
 import logging
-import sys
-import subprocess
-from pathlib import Path
+import threading
+from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt6.QtGui import QFont, QColor
 from PyQt6.QtWidgets import (
-    QApplication, QDialog, QLabel, QPushButton, QVBoxLayout, QHBoxLayout,
-    QProgressBar, QTextEdit, QFrame,
+    QDialog, QVBoxLayout, QHBoxLayout, QLabel,
+    QPushButton, QWidget, QProgressBar, QTextEdit,
 )
+from PyQt6.QtCore import Qt, pyqtSignal, QThread
+from PyQt6.QtGui import QFont
 
-from version import APP_VERSION, APP_NAME
-from updater import UpdateManager, UpdateManifest, UpdateState, get_update_manager
+if TYPE_CHECKING:
+    from updater import UpdateManifest
 
 logger = logging.getLogger("UPDATER")
 
 
-class _DownloadThread(QThread):
-    """Background thread for download + verify + install."""
-    progress = pyqtSignal(float, int, int)   # percent, downloaded, total
-    finished = pyqtSignal(bool, str)         # success, message
+# ═════════════════════════════════════════════════════════════════════════════
+# Styles
+# ═════════════════════════════════════════════════════════════════════════════
 
-    def __init__(self, manager: UpdateManager, manifest: UpdateManifest) -> None:
+_BG = "#0a0d12"
+_CARD = "#111820"
+_BORDER = "#1e2a38"
+_CYAN = "#00d4ff"
+_TEXT = "#c8cdd4"
+_DIM = "#6b7a8d"
+_BTN_UPDATE = "background-color: #00d4ff; color: #000000; border: none; border-radius: 8px; padding: 12px 24px; font-weight: bold;"
+_BTN_UPDATE_HOVER = "background-color: #00b8e0;"
+_BTN_LATER = f"background-color: {_CARD}; color: {_DIM}; border: 1px solid {_BORDER}; border-radius: 8px; padding: 12px 24px;"
+_BTN_LATER_HOVER = f"background-color: {_BORDER}; color: {_TEXT};"
+_BTN_RETRY = f"background-color: {_CARD}; color: {_CYAN}; border: 1px solid {_CYAN}; border-radius: 8px; padding: 12px 24px;"
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Download Worker Thread
+# ═════════════════════════════════════════════════════════════════════════════
+
+class _DownloadWorker(QThread):
+    """Background download with progress signals."""
+    progress = pyqtSignal(float, str)  # percent, message
+    completed = pyqtSignal(str)  # file path
+    failed = pyqtSignal(str)  # error message
+
+    def __init__(self, manifest: "UpdateManifest"):
         super().__init__()
-        self._manager = manager
-        self._manifest = manifest
+        self.manifest = manifest
 
-    def run(self) -> None:
-        def on_progress(p):
-            self.progress.emit(p.percent, p.downloaded_bytes, p.total_bytes)
+    def run(self):
+        from updater import get_update_manager
+        manager = get_update_manager()
 
-        self._manager.register_callback(on_progress)
-        try:
-            # Download
-            zip_path = self._manager.download_update(self._manifest)
-            if not zip_path:
-                self.finished.emit(False, "Download failed")
-                return
+        def _on_progress(pct, msg):
+            self.progress.emit(pct, msg)
 
-            # Verify
-            if not self._manager.verify_integrity(zip_path, self._manifest.sha256):
-                self.finished.emit(False, "Integrity check failed")
-                return
+        path = manager.download_update(self.manifest, progress_cb=_on_progress)
+        if path:
+            self.completed.emit(str(path))
+        else:
+            self.failed.emit("Download failed after multiple attempts")
 
-            # Backup
-            backup = self._manager.create_backup()
-            if not backup:
-                self.finished.emit(False, "Backup failed")
-                return
 
-            # Install
-            if not self._manager.install_update(zip_path, backup):
-                self.finished.emit(False, "Failed to install update")
-                return
-
-            self.finished.emit(True, "Update installed. Restarting...")
-        except Exception as e:
-            logger.error("[UPDATER] Update thread error: %s", e)
-            self.finished.emit(False, str(e))
-        finally:
-            self._manager.unregister_callback(on_progress)
-
+# ═════════════════════════════════════════════════════════════════════════════
+# Update Popup
+# ═════════════════════════════════════════════════════════════════════════════
 
 class UpdatePopup(QDialog):
-    """Modal update notification dialog."""
+    """Shows update available with version info and action buttons."""
 
-    def __init__(self, manifest: UpdateManifest, parent=None) -> None:
+    def __init__(self, manifest: "UpdateManifest", parent: QWidget = None):
         super().__init__(parent)
         self.manifest = manifest
-        self._manager = get_update_manager()
-        self._thread: _DownloadThread | None = None
         self._setup_ui()
 
-    def _setup_ui(self) -> None:
-        self.setWindowTitle(f"{APP_NAME} Update Available")
-        self.setFixedSize(480, 520)
-        self.setWindowFlags(self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
-        self.setStyleSheet("""
-            QDialog { background: #0d1117; }
-            QLabel { color: #c9d1d9; }
-            QPushButton { border-radius: 6px; padding: 8px 20px; font-weight: bold; }
-        """)
+    def _setup_ui(self):
+        self.setWindowTitle("SONIC AI — Update Available")
+        self.setFixedSize(480, 380)
+        self.setWindowFlags(
+            Qt.WindowType.Dialog
+            | Qt.WindowType.WindowCloseButtonHint
+            | Qt.WindowType.WindowStaysOnTopHint
+        )
+        self.setStyleSheet(f"QDialog {{ background-color: {_BG}; }}")
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)
-        layout.setContentsMargins(24, 20, 24, 20)
-
-        # Header
-        header = QLabel(f"{APP_NAME} UPDATE AVAILABLE")
-        header.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
-        header.setStyleSheet("color: #00d4ff;")
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(header)
-
-        # Version info
-        ver_layout = QHBoxLayout()
-        cur_lbl = QLabel(f"Current: v{APP_VERSION}")
-        cur_lbl.setStyleSheet("color: #8b949e; font-size: 11px;")
-        new_lbl = QLabel(f"New: v{self.manifest.version}")
-        new_lbl.setStyleSheet("color: #3fb950; font-size: 11px; font-weight: bold;")
-        ver_layout.addStretch()
-        ver_layout.addWidget(cur_lbl)
-        ver_layout.addSpacing(20)
-        ver_layout.addWidget(new_lbl)
-        ver_layout.addStretch()
-        layout.addLayout(ver_layout)
-
-        # Separator
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color: #21262d;")
-        layout.addWidget(sep)
+        layout.setSpacing(12)
+        layout.setContentsMargins(24, 24, 24, 24)
 
         # Title
-        if self.manifest.title:
-            title = QLabel(self.manifest.title)
-            title.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-            title.setStyleSheet("color: #f0f6fc;")
-            layout.addWidget(title)
+        if self.manifest.mandatory:
+            title = QLabel("IMPORTANT UPDATE REQUIRED")
+            title.setStyleSheet(f"color: #ff4444; font-size: 16px; font-weight: bold;")
+        else:
+            title = QLabel("Update Available")
+            title.setStyleSheet(f"color: {_CYAN}; font-size: 16px; font-weight: bold;")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
 
-        # Summary / Release notes
-        notes = self.manifest.summary or self.manifest.release_notes
-        if notes:
-            notes_box = QTextEdit()
-            notes_box.setPlainText(notes)
-            notes_box.setReadOnly(True)
-            notes_box.setMaximumHeight(140)
-            notes_box.setStyleSheet("""
-                QTextEdit {
-                    background: #161b22;
-                    color: #8b949e;
-                    border: 1px solid #21262d;
+        # Version info
+        from version import APP_VERSION
+        ver = QLabel(f"Current: v{APP_VERSION}  →  New: v{self.manifest.version}")
+        ver.setStyleSheet(f"color: {_TEXT}; font-size: 12px;")
+        ver.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(ver)
+
+        # Asset info
+        if self.manifest.asset_size:
+            size_mb = self.manifest.asset_size / (1024 * 1024)
+            size_label = QLabel(f"Download: {self.manifest.asset_name} ({size_mb:.0f} MB)")
+            size_label.setStyleSheet(f"color: {_DIM}; font-size: 10px;")
+            size_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(size_label)
+
+        # Release notes (truncated)
+        if self.manifest.release_notes:
+            notes = QTextEdit()
+            notes.setPlainText(self.manifest.release_notes[:2000])
+            notes.setReadOnly(True)
+            notes.setMaximumHeight(120)
+            notes.setStyleSheet(f"""
+                QTextEdit {{
+                    background-color: {_CARD};
+                    color: {_DIM};
+                    border: 1px solid {_BORDER};
                     border-radius: 6px;
                     padding: 8px;
-                    font-size: 11px;
-                }
+                    font-size: 10px;
+                }}
             """)
-            layout.addWidget(notes_box)
-
-        # Release notes link
-        if self.manifest.release_notes_url:
-            link = QLabel(f'<a href="{self.manifest.release_notes_url}" style="color:#58a6ff;">View full release notes</a>')
-            link.setOpenExternalLinks(True)
-            link.setStyleSheet("font-size: 10px;")
-            layout.addWidget(link)
-
-        # Progress section (hidden initially)
-        self._progress_frame = QFrame()
-        p_layout = QVBoxLayout(self._progress_frame)
-        p_layout.setContentsMargins(0, 0, 0, 0)
-
-        self._progress_label = QLabel("Preparing download...")
-        self._progress_label.setStyleSheet("color: #c9d1d9; font-size: 11px;")
-        p_layout.addWidget(self._progress_label)
-
-        self._progress_bar = QProgressBar()
-        self._progress_bar.setRange(0, 100)
-        self._progress_bar.setValue(0)
-        self._progress_bar.setFixedHeight(20)
-        self._progress_bar.setStyleSheet("""
-            QProgressBar {
-                background: #161b22;
-                border: 1px solid #21262d;
-                border-radius: 6px;
-                text-align: center;
-                color: #c9d1d9;
-                font-size: 10px;
-            }
-            QProgressBar::chunk {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #00d4ff, stop:1 #0099cc);
-                border-radius: 5px;
-            }
-        """)
-        p_layout.addWidget(self._progress_bar)
-
-        self._progress_detail = QLabel("")
-        self._progress_detail.setStyleSheet("color: #8b949e; font-size: 10px;")
-        p_layout.addWidget(self._progress_detail)
-
-        self._progress_frame.hide()
-        layout.addWidget(self._progress_frame)
-
-        layout.addStretch()
+            layout.addWidget(notes)
 
         # Buttons
         btn_layout = QHBoxLayout()
-        btn_layout.addStretch()
+        btn_layout.setSpacing(12)
 
-        self._later_btn = QPushButton("Later")
-        self._later_btn.setStyleSheet("""
-            QPushButton { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; }
-            QPushButton:hover { background: #30363d; }
-        """)
-        self._later_btn.clicked.connect(self._on_later)
-        btn_layout.addWidget(self._later_btn)
+        update_btn = QPushButton("Download & Install")
+        update_btn.setStyleSheet(f"QPushButton {{ {_BTN_UPDATE} }} QPushButton:hover {{ {_BTN_UPDATE_HOVER} }}")
+        update_btn.clicked.connect(self._on_update)
+        btn_layout.addWidget(update_btn)
 
-        self._update_btn = QPushButton("Update Now")
-        self._update_btn.setStyleSheet("""
-            QPushButton { background: #238636; color: #ffffff; border: none; }
-            QPushButton:hover { background: #2ea043; }
-            QPushButton:disabled { background: #21262d; color: #484f58; }
-        """)
-        self._update_btn.clicked.connect(self._on_update)
-        btn_layout.addWidget(self._update_btn)
+        if not self.manifest.mandatory:
+            later_btn = QPushButton("Later")
+            later_btn.setStyleSheet(f"QPushButton {{ {_BTN_LATER} }} QPushButton:hover {{ {_BTN_LATER_HOVER} }}")
+            later_btn.clicked.connect(self._on_later)
+            btn_layout.addWidget(later_btn)
 
         layout.addLayout(btn_layout)
 
-        # Mandatory update — disable "Later"
-        if self.manifest.mandatory:
-            self._later_btn.setEnabled(False)
-            self._later_btn.setToolTip("This is a critical security update")
-            header.setText(f"{APP_NAME} CRITICAL UPDATE REQUIRED")
-            header.setStyleSheet("color: #f85149;")
+        # View release notes link
+        if self.manifest.release_page_url:
+            link = QLabel(f'<a href="{self.manifest.release_page_url}" style="color: {_DIM};">View release page</a>')
+            link.setOpenExternalLinks(True)
+            link.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(link)
 
-    def _on_later(self) -> None:
+    def _on_update(self):
+        self.accept()
+        # Open download progress dialog
+        dlg = DownloadProgressDialog(self.manifest, parent=self.parentWidget())
+        dlg.exec()
+
+    def _on_later(self):
         self.reject()
 
-    def _on_update(self) -> None:
-        self._update_btn.setEnabled(False)
-        self._update_btn.setText("Updating...")
-        self._later_btn.setEnabled(False)
-        self._progress_frame.show()
-
-        self._thread = _DownloadThread(self._manager, self.manifest)
-        self._thread.progress.connect(self._on_progress)
-        self._thread.finished.connect(self._on_finished)
-        self._thread.start()
-
-    def _on_progress(self, percent: float, downloaded: int, total: int) -> None:
-        self._progress_bar.setValue(int(percent))
-        if total > 0:
-            dl_mb = downloaded / (1024 * 1024)
-            total_mb = total / (1024 * 1024)
-            self._progress_detail.setText(f"{dl_mb:.1f} MB / {total_mb:.1f} MB")
-        if percent < 30:
-            self._progress_label.setText("Downloading update...")
-        elif percent < 60:
-            self._progress_label.setText("Verifying integrity...")
-        elif percent < 90:
-            self._progress_label.setText("Creating backup...")
-        else:
-            self._progress_label.setText("Installing update...")
-
-    def _on_finished(self, success: bool, message: str) -> None:
-        if success:
-            self._progress_label.setText("Update installed! Restarting...")
-            self._progress_bar.setValue(100)
-            self._progress_detail.setText("SONIC will restart in a moment...")
-            # Close popup and let app handle restart
-            QTimer.singleShot(1500, self._do_restart)
-        else:
-            self._progress_label.setText(f"Error: {message}")
-            self._update_btn.setEnabled(True)
-            self._update_btn.setText("Retry")
-            self._later_btn.setEnabled(True)
-
-    def _do_restart(self) -> None:
-        """Accept the dialog and signal the main app to exit."""
-        self.accept()
-        # The main app should detect the update was installed and exit
-        app = QApplication.instance()
-        if app:
-            app.quit()
+    def closeEvent(self, event):
+        self.reject()
+        event.accept()
 
 
-class UpdateNotification(QFrame):
-    """Inline notification banner (non-modal) for the main window."""
+# ═════════════════════════════════════════════════════════════════════════════
+# Download Progress Dialog
+# ═════════════════════════════════════════════════════════════════════════════
 
-    def __init__(self, manifest: UpdateManifest, parent=None) -> None:
+class DownloadProgressDialog(QDialog):
+    """Shows download progress, verification, and install button."""
+
+    def __init__(self, manifest: "UpdateManifest", parent: QWidget = None):
         super().__init__(parent)
         self.manifest = manifest
+        self.worker = None
         self._setup_ui()
 
-    def _setup_ui(self) -> None:
-        self.setStyleSheet("""
-            QFrame {
-                background: #161b22;
-                border: 1px solid #00d4ff;
-                border-radius: 8px;
-                padding: 10px;
-            }
-        """)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(12, 8, 12, 8)
-
-        text = QLabel(
-            f'<span style="color:#00d4ff; font-weight:bold;">Update Available</span> '
-            f'<span style="color:#8b949e;"> — v{self.manifest.version}</span>'
+    def _setup_ui(self):
+        self.setWindowTitle("SONIC AI — Updating")
+        self.setFixedSize(420, 220)
+        self.setWindowFlags(
+            Qt.WindowType.Dialog
+            | Qt.WindowType.WindowCloseButtonHint
         )
-        text.setStyleSheet("background: transparent;")
-        layout.addWidget(text)
+        self.setStyleSheet(f"QDialog {{ background-color: {_BG}; }}")
 
-        layout.addStretch()
+        layout = QVBoxLayout(self)
+        layout.setSpacing(12)
+        layout.setContentsMargins(24, 24, 24, 24)
 
-        update_btn = QPushButton("Update")
-        update_btn.setStyleSheet("""
-            QPushButton { background: #238636; color: white; border: none;
-                          border-radius: 4px; padding: 4px 12px; font-size: 11px; }
-            QPushButton:hover { background: #2ea043; }
+        # Status
+        self.status_label = QLabel(f"Downloading v{self.manifest.version}...")
+        self.status_label.setStyleSheet(f"color: {_CYAN}; font-size: 13px; font-weight: bold;")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.status_label)
+
+        # Progress bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFixedHeight(20)
+        self.progress_bar.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: {_CARD};
+                border: 1px solid {_BORDER};
+                border-radius: 10px;
+                text-align: center;
+                color: {_TEXT};
+                font-size: 10px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {_CYAN};
+                border-radius: 10px;
+            }}
         """)
-        update_btn.clicked.connect(self._on_update)
-        layout.addWidget(update_btn)
+        layout.addWidget(self.progress_bar)
 
-        dismiss_btn = QPushButton("x")
-        dismiss_btn.setFixedSize(24, 24)
-        dismiss_btn.setStyleSheet("""
-            QPushButton { background: transparent; color: #484f58; border: none;
-                          font-size: 14px; }
-            QPushButton:hover { color: #f85149; }
-        """)
-        dismiss_btn.clicked.connect(self.hide)
-        layout.addWidget(dismiss_btn)
+        # Detail label
+        self.detail_label = QLabel("Preparing...")
+        self.detail_label.setStyleSheet(f"color: {_DIM}; font-size: 10px;")
+        self.detail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.detail_label)
 
-    def _on_update(self) -> None:
-        popup = UpdatePopup(self.manifest, parent=self.window())
-        popup.exec()
+        # Buttons
+        btn_layout = QHBoxLayout()
+        self.cancel_btn = QPushButton("Cancel")
+        self.cancel_btn.setStyleSheet(f"QPushButton {{ {_BTN_LATER} }} QPushButton:hover {{ {_BTN_LATER_HOVER} }}")
+        self.cancel_btn.clicked.connect(self._on_cancel)
+        btn_layout.addWidget(self.cancel_btn)
+
+        self.retry_btn = QPushButton("Retry")
+        self.retry_btn.setStyleSheet(f"QPushButton {{ {_BTN_RETRY} }}")
+        self.retry_btn.clicked.connect(self._on_retry)
+        self.retry_btn.setVisible(False)
+        btn_layout.addWidget(self.retry_btn)
+
+        self.install_btn = QPushButton("Install Now")
+        self.install_btn.setStyleSheet(f"QPushButton {{ {_BTN_UPDATE} }} QPushButton:hover {{ {_BTN_UPDATE_HOVER} }}")
+        self.install_btn.clicked.connect(self._on_install)
+        self.install_btn.setVisible(False)
+        btn_layout.addWidget(self.install_btn)
+
+        layout.addLayout(btn_layout)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._start_download()
+
+    def _start_download(self):
+        self.progress_bar.setValue(0)
+        self.status_label.setText(f"Downloading v{self.manifest.version}...")
+        self.detail_label.setText("Starting download...")
+        self.cancel_btn.setVisible(True)
+        self.retry_btn.setVisible(False)
+        self.install_btn.setVisible(False)
+
+        self.worker = _DownloadWorker(self.manifest)
+        self.worker.progress.connect(self._on_progress)
+        self.worker.completed.connect(self._on_completed)
+        self.worker.failed.connect(self._on_failed)
+        self.worker.start()
+
+    def _on_progress(self, pct: float, msg: str):
+        self.progress_bar.setValue(int(pct))
+        self.detail_label.setText(msg)
+
+    def _on_completed(self, path: str):
+        self.status_label.setText("Verifying download...")
+        self.detail_label.setText("SHA-256 check...")
+        self.progress_bar.setValue(100)
+
+        from updater import get_update_manager
+        manager = get_update_manager()
+
+        if manager.verify_artifact(
+            __import__("pathlib").Path(path),
+            self.manifest.sha256,
+        ):
+            self.status_label.setText("Ready to install")
+            self.detail_label.setText(f"New version v{self.manifest.version} verified")
+            self.cancel_btn.setVisible(False)
+            self.install_btn.setVisible(True)
+            self._install_path = path
+        else:
+            self.status_label.setText("Verification failed")
+            self.detail_label.setText("Hash mismatch — download may be corrupted")
+            self.cancel_btn.setVisible(False)
+            self.retry_btn.setVisible(True)
+
+    def _on_failed(self, error: str):
+        self.status_label.setText("Download failed")
+        self.detail_label.setText(error)
+        self.cancel_btn.setVisible(False)
+        self.retry_btn.setVisible(True)
+
+    def _on_install(self):
+        from updater import get_update_manager
+        manager = get_update_manager()
+        self.status_label.setText("Installing...")
+        self.detail_label.setText("Launching updater — SONIC will restart")
+        self.install_btn.setEnabled(False)
+        self.cancel_btn.setVisible(False)
+
+        # Install in background thread so UI doesn't freeze
+        def _do_install():
+            manager.install_update(
+                __import__("pathlib").Path(self._install_path),
+                self.manifest,
+            )
+
+        threading.Thread(target=_do_install, daemon=True).start()
+
+    def _on_cancel(self):
+        if self.worker and self.worker.isRunning():
+            self.worker.terminate()
+        self.reject()
+
+    def _on_retry(self):
+        self._start_download()
+
+    def closeEvent(self, event):
+        if self.worker and self.worker.isRunning():
+            self.worker.terminate()
+        event.accept()

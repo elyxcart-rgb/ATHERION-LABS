@@ -1,4 +1,4 @@
-"""Tests for SONIC AI Update System."""
+"""Tests for SONIC AI Update System — Permanent Infrastructure."""
 import hashlib
 import json
 import os
@@ -9,7 +9,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-# Ensure project root is importable
 import sys
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
@@ -18,10 +17,6 @@ if str(_PROJECT_ROOT) not in sys.path:
 from version import (
     APP_VERSION, APP_NAME, APP_CHANNEL,
     _parse_semver, version_tuple, is_newer, is_compatible, format_version,
-)
-from updater import (
-    UpdateState, UpdateManifest, UpdateProgress,
-    UpdateManager, _STAGING_DIR, _BACKUP_DIR, _USER_DATA,
 )
 
 
@@ -43,7 +38,6 @@ class TestVersionModule(unittest.TestCase):
 
     def test_version_tuple(self):
         self.assertEqual(version_tuple("1.2.3"), (1, 2, 3))
-        # Default uses APP_VERSION
         self.assertEqual(version_tuple(), _parse_semver(APP_VERSION))
 
     def test_is_newer(self):
@@ -58,7 +52,6 @@ class TestVersionModule(unittest.TestCase):
         self.assertTrue(is_compatible("0.0.1"))
         self.assertTrue(is_compatible("1.0.0"))
         self.assertTrue(is_compatible(APP_VERSION))
-        # Can't test future version without mocking APP_VERSION
 
     def test_format_version(self):
         self.assertIn(APP_NAME, format_version())
@@ -74,91 +67,120 @@ class TestVersionModule(unittest.TestCase):
 
 
 class TestUpdateManifest(unittest.TestCase):
-    """Test manifest dataclass."""
+    """Test manifest parsing from GitHub API response."""
 
-    def test_from_dict(self):
+    def _make_release(self, **overrides):
+        """Create a mock GitHub API release response."""
         data = {
-            "version": "2.0.0",
-            "channel": "stable",
-            "download_url": "https://example.com/sonic.zip",
-            "sha256": "abc123",
-            "mandatory": True,
-            "summary": "Bug fixes",
+            "tag_name": "v1.1.0",
+            "draft": False,
+            "prerelease": False,
+            "body": "Bug fixes and improvements",
+            "published_at": "2026-09-09T12:00:00Z",
+            "id": 123456,
+            "html_url": "https://github.com/test/repo/releases/tag/v1.1.0",
+            "assets": [
+                {
+                    "name": "SONIC-AI-Setup-1.1.0.exe",
+                    "browser_download_url": "https://github.com/test/repo/releases/download/v1.1.0/SONIC-AI-Setup-1.1.0.exe",
+                    "size": 270000000,
+                }
+            ],
         }
-        m = UpdateManifest.from_dict(data)
-        self.assertEqual(m.version, "2.0.0")
+        data.update(overrides)
+        return data
+
+    def test_from_github_release_valid(self):
+        from updater import UpdateManifest
+        m = UpdateManifest.from_github_release(self._make_release())
+        self.assertIsNotNone(m)
+        self.assertEqual(m.version, "1.1.0")
         self.assertEqual(m.channel, "stable")
-        self.assertTrue(m.mandatory)
-        self.assertEqual(m.sha256, "abc123")
+        self.assertIn("SONIC-AI-Setup", m.asset_name)
+        self.assertEqual(m.asset_size, 270000000)
+
+    def test_from_github_release_draft(self):
+        from updater import UpdateManifest
+        m = UpdateManifest.from_github_release(self._make_release(draft=True))
+        self.assertIsNone(m)
+
+    def test_from_github_release_prerelease(self):
+        from updater import UpdateManifest
+        m = UpdateManifest.from_github_release(self._make_release(prerelease=True))
+        self.assertIsNone(m)
+
+    def test_from_github_release_no_assets(self):
+        from updater import UpdateManifest
+        m = UpdateManifest.from_github_release(self._make_release(assets=[]))
+        self.assertIsNone(m)
+
+    def test_from_github_release_wrong_asset(self):
+        from updater import UpdateManifest
+        m = UpdateManifest.from_github_release(self._make_release(assets=[
+            {"name": "some-other-file.zip", "browser_download_url": "https://x.com/a.zip", "size": 100}
+        ]))
+        self.assertIsNone(m)
+
+    def test_from_github_release_empty_tag(self):
+        from updater import UpdateManifest
+        m = UpdateManifest.from_github_release(self._make_release(tag_name=""))
+        self.assertIsNone(m)
 
     def test_to_dict(self):
-        m = UpdateManifest(version="1.0.0", download_url="https://x.com/a.zip")
+        from updater import UpdateManifest
+        m = UpdateManifest(version="1.0.0", download_url="https://x.com/a.exe")
         d = m.to_dict()
         self.assertEqual(d["version"], "1.0.0")
         self.assertIn("download_url", d)
 
-    def test_defaults(self):
-        m = UpdateManifest()
-        self.assertEqual(m.channel, "stable")
-        self.assertFalse(m.mandatory)
-        self.assertEqual(m.minimum_supported_version, "0.0.0")
-
-
-class TestUpdateState(unittest.TestCase):
-    """Test state machine has all required states."""
-
-    REQUIRED_STATES = [
-        "idle", "checking", "available", "downloading", "verifying",
-        "staging", "waiting_to_install", "installing", "verifying_install",
-        "completed", "failed", "rolling_back", "rolled_back", "cancelled",
-    ]
-
-    def test_all_states_exist(self):
-        actual = {s.value for s in UpdateState}
-        for state in self.REQUIRED_STATES:
-            self.assertIn(state, actual, f"Missing state: {state}")
+    def test_from_dict(self):
+        from updater import UpdateManifest
+        data = {"version": "2.0.0", "channel": "beta", "download_url": "https://x.com/a.exe"}
+        m = UpdateManifest.from_dict(data)
+        self.assertEqual(m.version, "2.0.0")
+        self.assertEqual(m.channel, "beta")
 
 
 class TestUpdateManager(unittest.TestCase):
     """Test UpdateManager core logic."""
 
     def setUp(self):
-        self.manager = UpdateManager()
-        # Use temp dirs to avoid touching real user data
-        self._orig_staging = _STAGING_DIR
-        self._orig_backup = _BACKUP_DIR
+        from updater import UpdateManager, _UPDATER_DIR, _DOWNLOAD_DIR, _BACKUP_DIR
+        self._orig_dirs = (_UPDATER_DIR, _DOWNLOAD_DIR, _BACKUP_DIR)
         self._tmp = tempfile.mkdtemp()
-        # Patch paths
+
         import updater
-        updater._STAGING_DIR = Path(self._tmp) / "staging"
-        updater._BACKUP_DIR = Path(self._tmp) / "backup"
+        updater._UPDATER_DIR = Path(self._tmp)
         updater._DOWNLOAD_DIR = Path(self._tmp) / "downloads"
-        updater._MANIFEST_CACHE = Path(self._tmp) / ".cache.json"
+        updater._BACKUP_DIR = Path(self._tmp) / "backup"
+        updater._SETTINGS_PATH = Path(self._tmp) / "settings.json"
         updater._LAST_CHECK_PATH = Path(self._tmp) / ".last_check"
-        updater._USER_DATA = Path(self._tmp)
-        updater._SETTINGS_PATH = Path(self._tmp) / "update_settings.json"
-        self.manager._ensure_dirs()
+        updater._JOURNAL_DIR = Path(self._tmp) / "updates"
+        updater._JOURNAL_PATH = Path(self._tmp) / "updates" / "journal.jsonl"
+
+        self.manager = UpdateManager()
 
     def tearDown(self):
         import updater
-        updater._STAGING_DIR = self._orig_staging
-        updater._BACKUP_DIR = self._orig_backup
+        updater._UPDATER_DIR = self._orig_dirs[0]
+        updater._DOWNLOAD_DIR = self._orig_dirs[1]
+        updater._BACKUP_DIR = self._orig_dirs[2]
         shutil.rmtree(self._tmp, ignore_errors=True)
 
     def test_initial_state(self):
-        self.assertEqual(self.manager.state, UpdateState.IDLE)
+        self.assertIsNotNone(self.manager)
 
     def test_callback_registration(self):
         cb = MagicMock()
         self.manager.register_callback(cb)
-        self.manager._emit()
-        cb.assert_called_once()
+        self.manager._emit("test", {"key": "value"})
+        cb.assert_called_once_with("test", {"key": "value"})
 
     def test_callback_unregister(self):
         cb = MagicMock()
         self.manager.register_callback(cb)
         self.manager.unregister_callback(cb)
-        self.manager._emit()
+        self.manager._emit("test", {})
         cb.assert_not_called()
 
     def test_should_check_first_time(self):
@@ -168,89 +190,68 @@ class TestUpdateManager(unittest.TestCase):
         self.manager.mark_checked()
         self.assertFalse(self.manager.should_check())
 
-    def test_should_check_force(self):
-        # Force bypasses rate limit (handled by caller)
-        self.manager.mark_checked()
-        # should_check still returns False, but check_for_update(force=True) bypasses it
-        self.assertFalse(self.manager.should_check())
-
     def test_get_settings_defaults(self):
         settings = self.manager.get_settings()
         self.assertTrue(settings["auto_check"])
         self.assertEqual(settings["channel"], "stable")
-        self.assertFalse(settings["auto_download"])
 
     def test_save_settings(self):
         self.manager.save_settings({"auto_check": False})
         settings = self.manager.get_settings()
         self.assertFalse(settings["auto_check"])
 
-    def test_verify_integrity_pass(self):
-        # Create a test zip
-        staging = Path(self._tmp) / "staging"
-        staging.mkdir(exist_ok=True)
-        zip_path = staging / "test.zip"
-        zip_path.write_bytes(b"test content")
+    def test_calculate_sha256(self):
+        tmp = Path(self._tmp) / "test_file.bin"
+        tmp.write_bytes(b"hello world")
+        expected = hashlib.sha256(b"hello world").hexdigest()
+        self.assertEqual(self.manager.calculate_sha256(tmp), expected)
 
-        expected = hashlib.sha256(b"test content").hexdigest()
-        self.assertTrue(self.manager.verify_integrity(zip_path, expected))
+    def test_verify_artifact_pass(self):
+        tmp = Path(self._tmp) / "test.bin"
+        tmp.write_bytes(b"test data")
+        sha = hashlib.sha256(b"test data").hexdigest()
+        self.assertTrue(self.manager.verify_artifact(tmp, sha))
 
-    def test_verify_integrity_fail(self):
-        staging = Path(self._tmp) / "staging"
-        staging.mkdir(exist_ok=True)
-        zip_path = staging / "test.zip"
-        zip_path.write_bytes(b"test content")
+    def test_verify_artifact_fail(self):
+        tmp = Path(self._tmp) / "test.bin"
+        tmp.write_bytes(b"test data")
+        self.assertFalse(self.manager.verify_artifact(tmp, "wrong_hash"))
 
-        self.assertFalse(self.manager.verify_integrity(zip_path, "wrong_hash"))
+    def test_verify_artifact_no_hash(self):
+        tmp = Path(self._tmp) / "test.bin"
+        tmp.write_bytes(b"test data")
+        self.assertTrue(self.manager.verify_artifact(tmp, ""))
 
-    def test_verify_integrity_no_hash(self):
-        staging = Path(self._tmp) / "staging"
-        staging.mkdir(exist_ok=True)
-        zip_path = staging / "test.zip"
-        zip_path.write_bytes(b"test")
+    def test_verify_artifact_missing_file(self):
+        fake = Path(self._tmp) / "nonexistent.bin"
+        self.assertFalse(self.manager.verify_artifact(fake, "abc"))
 
-        # No hash provided — should pass
-        self.assertTrue(self.manager.verify_integrity(zip_path, ""))
+    def test_journal(self):
+        self.manager._journal("test_stage", key="value")
+        # Journal file should exist
+        from updater import _JOURNAL_PATH
+        self.assertTrue(_JOURNAL_PATH.exists())
+        lines = _JOURNAL_PATH.read_text().strip().split("\n")
+        self.assertTrue(len(lines) >= 1)
+        entry = json.loads(lines[-1])
+        self.assertEqual(entry["stage"], "test_stage")
+        self.assertEqual(entry["key"], "value")
 
-    def test_create_backup(self):
-        # Create a fake app dir with main.py
-        import updater
-        orig_app = updater._APP_DIR
-        updater._APP_DIR = Path(self._tmp) / "app"
-        updater._APP_DIR.mkdir(exist_ok=True)
-        (updater._APP_DIR / "main.py").write_text("print('hello')")
-        (updater._APP_DIR / "__pycache__").mkdir(exist_ok=True)
+    def test_diagnostics(self):
+        diag = self.manager.get_diagnostics()
+        self.assertIn("current_version", diag)
+        self.assertIn("channel", diag)
+        self.assertIn("last_check", diag)
 
-        try:
-            backup = self.manager.create_backup()
-            self.assertIsNotNone(backup)
-            self.assertTrue(backup.exists())
-            self.assertTrue((backup / "main.py").exists())
-            # __pycache__ should not be backed up
-            self.assertFalse((backup / "__pycache__").exists())
-        finally:
-            updater._APP_DIR = orig_app
+    def test_find_backup_empty(self):
+        self.assertIsNone(self.manager.find_backup())
 
-    def test_cleanup(self):
-        staging = Path(self._tmp) / "staging"
-        staging.mkdir(exist_ok=True)
-        (staging / "file.txt").write_text("x")
-        self.manager.cleanup()
-        self.assertFalse(staging.exists())
-
-
-class TestUpdateProgress(unittest.TestCase):
-    """Test progress data class."""
-
-    def test_defaults(self):
-        p = UpdateProgress()
-        self.assertEqual(p.state, UpdateState.IDLE)
-        self.assertEqual(p.percent, 0.0)
-
-    def test_with_values(self):
-        p = UpdateProgress(state=UpdateState.DOWNLOADING, percent=75.0, message="Downloading...")
-        self.assertEqual(p.state, UpdateState.DOWNLOADING)
-        self.assertEqual(p.percent, 75.0)
+    def test_find_backup_with_data(self):
+        backup_dir = Path(self._tmp) / "backup" / "v1.0.0"
+        backup_dir.mkdir(parents=True)
+        (backup_dir / "SONIC-AI.exe").write_bytes(b"fake exe")
+        result = self.manager.find_backup()
+        self.assertIsNotNone(result)
 
 
 if __name__ == "__main__":

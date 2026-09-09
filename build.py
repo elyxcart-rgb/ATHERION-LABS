@@ -117,6 +117,72 @@ def verify() -> None:
             log(f"  MISSING: {r}", RED)
 
 
+def build_updater() -> None:
+    """Build SONIC-Updater.exe from updater_helper.py."""
+    updater_spec = ROOT / "updater_helper.spec"
+
+    # Create spec if it doesn't exist
+    if not updater_spec.exists():
+        spec_content = f"""# -*- mode: python ; coding: utf-8 -*-
+a = Analysis(
+    ['updater_helper.py'],
+    pathex=[{repr(str(ROOT))}],
+    binaries=[],
+    datas=[],
+    hiddenimports=[],
+    hookspath=[],
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+)
+pyz = PYZ(a.pure)
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='SONIC-Updater',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+    icon='config/sonic.ico',
+)
+"""
+        updater_spec.write_text(spec_content, encoding="utf-8")
+
+    log("Building SONIC-Updater.exe...")
+    start = time.time()
+
+    run([
+        sys.executable, "-m", "PyInstaller",
+        "--clean",
+        "--noconfirm",
+        "--distpath", str(DIST),
+        "--workpath", str(BUILD),
+        str(updater_spec),
+    ], check=True)
+
+    updater_exe = DIST / "SONIC-Updater.exe"
+    if updater_exe.exists():
+        size_mb = updater_exe.stat().st_size / (1024 * 1024)
+        log(f"SONIC-Updater.exe: {size_mb:.1f} MB", GREEN)
+    else:
+        log("SONIC-Updater.exe not found after build", YELLOW)
+
+    elapsed = time.time() - start
+    log(f"Updater build completed in {elapsed:.1f}s", GREEN)
+
+
 def build_installer() -> None:
     """Build Inno Setup installer."""
     iscc_paths = [
@@ -167,6 +233,7 @@ def main() -> None:
     check_prerequisites()
     build()
     verify()
+    build_updater()
     build_installer()
 
     log("")

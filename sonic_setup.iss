@@ -5,6 +5,7 @@
 #define MyAppVersion "1.0.0"
 #define MyAppPublisher "SONIC AI"
 #define MyAppExeName "SONIC-AI.exe"
+#define MyAppUpdaterExe "SONIC-Updater.exe"
 #define MyAppAssocName "SONIC AI File"
 #define MyAppAssocExt ".sonic"
 #define MyAppAssocKey StringChange(MyAppAssocName, " ", "") + MyAppAssocExt
@@ -48,6 +49,7 @@ Name: "startmenuicon"; Description: "Create Start Menu shortcut"; GroupDescripti
 
 [Files]
 Source: "dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\{#MyAppUpdaterExe}"; DestDir: "{app}"; Flags: ignoreversion
 Source: "config\sonic.ico"; DestDir: "{app}\config"; Flags: ignoreversion
 Source: "config\sonic.png"; DestDir: "{app}\config"; Flags: ignoreversion
 Source: "auth\firebase_config.json"; DestDir: "{app}\auth"; Flags: ignoreversion
@@ -60,6 +62,10 @@ Name: "{app}\auth"
 Name: "{app}\core"
 Name: "{localappdata}\SONIC AI"
 Name: "{localappdata}\SONIC AI\memory"
+Name: "{localappdata}\SONIC AI\Updater"
+Name: "{localappdata}\SONIC AI\Updater\backup"
+Name: "{localappdata}\SONIC AI\Updater\downloads"
+Name: "{localappdata}\SONIC AI\updates"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
@@ -82,18 +88,35 @@ Root: HKA; Subkey: "Software\Classes\{#MyAppAssocKey}\shell\open\command"; Value
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"
-Type: filesandordirs; Name: "{localappdata}\SONIC AI\memory"
-Type: filesandordirs; Name: "{localappdata}\SONIC AI\bootstrap_state.json"
-Type: filesandordirs; Name: "{localappdata}\SONIC AI\location_settings.json"
-Type: filesandordirs; Name: "{localappdata}\SONIC AI\update_settings.json"
-Type: filesandordirs; Name: "{localappdata}\SONIC AI\.last_update_check"
+Type: filesandordirs; Name: "{localappdata}\SONIC AI\Updater"
+Type: filesandordirs; Name: "{localappdata}\SONIC AI\updates"
 
 [Code]
+// Auto-delete old version before installing new one
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  OldExe: String;
 begin
+  if CurStep = ssInstall then
+  begin
+    // Delete old EXE if it exists
+    OldExe := ExpandConstant('{app}\{#MyAppExeName}');
+    if FileExists(OldExe) then
+    begin
+      DelTree(OldExe, False, True, False);
+    end;
+    
+    // Delete old .old files from previous updates
+    DelTree(ExpandConstant('{app}\*.exe.old'), False, True, False);
+  end;
+  
   if CurStep = ssPostInstall then
   begin
     CreateDir(ExpandConstant('{localappdata}\SONIC AI'));
     CreateDir(ExpandConstant('{localappdata}\SONIC AI\memory'));
+    CreateDir(ExpandConstant('{localappdata}\SONIC AI\Updater'));
+    CreateDir(ExpandConstant('{localappdata}\SONIC AI\Updater\backup'));
+    CreateDir(ExpandConstant('{localappdata}\SONIC AI\Updater\downloads'));
+    CreateDir(ExpandConstant('{localappdata}\SONIC AI\updates'));
   end;
 end;

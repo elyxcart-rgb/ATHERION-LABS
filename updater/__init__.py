@@ -1,17 +1,14 @@
-"""SONIC AI — Update Manager Core.
+"""SONIC AI — Permanent Update Infrastructure
 
-State machine, version checking, download, verification, staging, rollback.
+GitHub Releases-based auto-update system.
+Designed once, works across all future versions.
 
 Architecture:
-    UpdateManager (this module)
-        → checks remote manifest
-        → downloads update package
-        → verifies SHA-256 + optional signature
-        → stages files in temp directory
-        → launches updater_helper.bat to swap files
-        → helper closes SONIC, replaces files, restarts SONIC
+  GitHub API → discover release → download installer → SHA-256 verify
+  → launch SONIC-Updater.exe → exit SONIC → helper installs → restart
 
-User data paths are NEVER touched by the updater.
+Developer workflow:
+  python release.py X.Y.Z → test → build → hash → GitHub Release → done
 """
 from __future__ import annotations
 
@@ -19,652 +16,465 @@ import hashlib
 import json
 import logging
 import os
-import shutil
-import subprocess
-import sys
-import tempfile
 import time
-import zipfile
-from dataclasses import dataclass, field
-from datetime import datetime
-from enum import Enum
+import urllib.request
+import urllib.error
+from dataclasses import dataclass, field, asdict
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 logger = logging.getLogger("UPDATER")
 
 # ── Paths ────────────────────────────────────────────────────────────────────
-# When running as EXE, use the EXE's directory. When running as source, use project root.
-if getattr(sys, 'frozen', False):
-    # Running as PyInstaller EXE
-    _APP_DIR = Path(sys.executable).resolve().parent
-else:
-    # Running as Python source
-    _APP_DIR = Path(__file__).resolve().parent.parent
+_APP_DATA = Path(os.environ.get("LOCALAPPDATA", "")) / "SONIC AI"
+_UPDATER_DIR = _APP_DATA / "Updater"
+_DOWNLOAD_DIR = _APP_DATA / "Updater" / "downloads"
+_BACKUP_DIR = _APP_DATA / "Updater" / "backup"
+_SETTINGS_PATH = _APP_DATA / "update_settings.json"
+_LAST_CHECK_PATH = _APP_DATA / ".last_update_check"
+_JOURNAL_DIR = _APP_DATA / "updates"
+_JOURNAL_PATH = _JOURNAL_DIR / "update_journal.jsonl"
 
-_USER_DATA = Path(os.environ.get("LOCALAPPDATA", "")) / "SONIC AI"
-_UPDATES_DIR = _USER_DATA / "updates"
-_STAGING_DIR = _UPDATES_DIR / "staging"
-_BACKUP_DIR = _UPDATES_DIR / "backup"
-_DOWNLOAD_DIR = _UPDATES_DIR / "downloads"
-_MANIFEST_CACHE = _UPDATES_DIR / ".manifest_cache.json"
-_SETTINGS_PATH = _USER_DATA / "update_settings.json"
-_LAST_CHECK_PATH = _USER_DATA / ".last_update_check"
-
-# ── State Machine ────────────────────────────────────────────────────────────
-
-class UpdateState(Enum):
-    IDLE = "idle"
-    CHECKING = "checking"
-    AVAILABLE = "available"
-    DOWNLOADING = "downloading"
-    VERIFYING = "verifying"
-    STAGING = "staging"
-    WAITING_TO_INSTALL = "waiting_to_install"
-    INSTALLING = "installing"
-    VERIFYING_INSTALL = "verifying_install"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    ROLLING_BACK = "rolling_back"
-    ROLLED_BACK = "rolled_back"
-    CANCELLED = "cancelled"
+# ── Constants ────────────────────────────────────────────────────────────────
+_CHECK_COOLDOWN_SECONDS = 6 * 60 * 60  # 6 hours
+_DOWNLOAD_TIMEOUT = 300  # 5 minutes per chunk
+_MAX_RETRIES = 3
+_RETRY_DELAY = 2  # seconds, doubles each retry
+_USER_AGENT = "SONIC-AI-Updater/1.0"
 
 
-# ── Manifest Schema ──────────────────────────────────────────────────────────
+# ═════════════════════════════════════════════════════════════════════════════
+# Data Models
+# ═════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class UpdateManifest:
-    """Remote release manifest."""
-    app: str = "SONIC AI"
-    channel: str = "stable"
+    """Release metadata from GitHub API."""
     version: str = ""
-    minimum_supported_version: str = "0.0.0"
-    release_date: str = ""
-    mandatory: bool = False
-    title: str = ""
-    summary: str = ""
+    channel: str = "stable"
     download_url: str = ""
     sha256: str = ""
-    signature: str = ""
-    size_bytes: int = 0
-    release_notes_url: str = ""
+    mandatory: bool = False
     release_notes: str = ""
+    minimum_supported_version: str = "1.0.0"
+    published_at: str = ""
+    asset_name: str = ""
+    asset_size: int = 0
+    release_id: str = ""
+    release_page_url: str = ""
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "UpdateManifest":
-        return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
+    def from_github_release(cls, release_data: dict, channel: str = "stable") -> UpdateManifest | None:
+        """Parse GitHub API release response. Returns None if invalid."""
+        try:
+            # Skip drafts and prereleases
+            if release_data.get("draft", False):
+                return None
+            if release_data.get("prerelease", False):
+                return None
 
-    def to_dict(self) -> dict[str, Any]:
-        return {k: getattr(self, k) for k in self.__dataclass_fields__ if getattr(self, k)}
+            tag = release_data.get("tag_name", "")
+            if not tag:
+                return None
+
+            # Extract version from tag (v1.1.0 → 1.1.0)
+            version = tag.lstrip("v").strip()
+            if not version:
+                return None
+
+            # Find installer asset (SONIC-AI-Setup-*.exe)
+            assets = release_data.get("assets", [])
+            installer_asset = None
+            for asset in assets:
+                name = asset.get("name", "")
+                if name.startswith("SONIC-AI-Setup") and name.endswith(".exe"):
+                    installer_asset = asset
+                    break
+
+            if not installer_asset:
+                logger.warning("[UPDATER] No installer asset found in release %s", tag)
+                return None
+
+            download_url = installer_asset.get("browser_download_url", "")
+            if not download_url:
+                return None
+
+            body = release_data.get("body", "")
+            published = release_data.get("published_at", "")
+            release_id = str(release_data.get("id", ""))
+
+            return cls(
+                version=version,
+                channel=channel,
+                download_url=download_url,
+                sha256="",  # Will be verified after download if manifest provides it
+                mandatory=False,
+                release_notes=body,
+                minimum_supported_version="1.0.0",
+                published_at=published,
+                asset_name=installer_asset.get("name", ""),
+                asset_size=installer_asset.get("size", 0),
+                release_id=release_id,
+                release_page_url=release_data.get("html_url", ""),
+            )
+        except Exception as e:
+            logger.warning("[UPDATER] Failed to parse release: %s", e)
+            return None
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> UpdateManifest:
+        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
 
-@dataclass
-class UpdateProgress:
-    """Progress info during download/install."""
-    state: UpdateState = UpdateState.IDLE
-    percent: float = 0.0
-    downloaded_bytes: int = 0
-    total_bytes: int = 0
-    message: str = ""
-    error: str = ""
-
-
-# ── Update Manager ───────────────────────────────────────────────────────────
+# ═════════════════════════════════════════════════════════════════════════════
+# Update Manager
+# ═════════════════════════════════════════════════════════════════════════════
 
 class UpdateManager:
-    """Core update manager — state machine + operations."""
+    """Singleton update manager — GitHub Releases based."""
 
-    MANIFEST_URL = "https://raw.githubusercontent.com/elyxcart-rgb/ATHERION-LABS/main/releases/stable.json"
-    CHECK_INTERVAL_HOURS = 6  # don't check more often than this
+    GITHUB_API_URL = "https://api.github.com/repos/{repo}/releases/latest"
 
     def __init__(self) -> None:
-        self.state = UpdateState.IDLE
-        self.manifest: UpdateManifest | None = None
-        self.progress = UpdateProgress()
-        self._callbacks: list[Callable[[UpdateProgress], None]] = []
+        self._callbacks: list[Callable] = []
         self._ensure_dirs()
 
-    # ── Public API ───────────────────────────────────────────────────────
+    def _ensure_dirs(self) -> None:
+        for d in (_UPDATER_DIR, _DOWNLOAD_DIR, _BACKUP_DIR, _JOURNAL_DIR):
+            d.mkdir(parents=True, exist_ok=True)
 
-    def register_callback(self, cb: Callable[[UpdateProgress], None]) -> None:
-        self._callbacks.append(cb)
+    # ── Callbacks ────────────────────────────────────────────────────────
 
-    def unregister_callback(self, cb: Callable[[UpdateProgress], None]) -> None:
+    def register_callback(self, cb: Callable) -> None:
+        if cb not in self._callbacks:
+            self._callbacks.append(cb)
+
+    def unregister_callback(self, cb: Callable) -> None:
         self._callbacks = [c for c in self._callbacks if c is not cb]
 
-    def _emit(self) -> None:
-        self.progress.state = self.state
+    def _emit(self, event: str, data: dict | None = None) -> None:
         for cb in self._callbacks:
             try:
-                cb(self.progress)
+                cb(event, data or {})
             except Exception:
                 pass
 
-    def _set_state(self, state: UpdateState, msg: str = "", error: str = "") -> None:
-        self.state = state
-        self.progress.state = state
-        self.progress.message = msg
-        self.progress.error = error
-        logger.info("[UPDATER] State: %s — %s", state.value, msg or error or "OK")
-        self._emit()
+    # ── Settings ─────────────────────────────────────────────────────────
 
-    # ── Check for Update ─────────────────────────────────────────────────
+    def get_settings(self) -> dict:
+        defaults = {"auto_check": True, "channel": "stable", "auto_download": False}
+        try:
+            if _SETTINGS_PATH.exists():
+                return {**defaults, **json.loads(_SETTINGS_PATH.read_text(encoding="utf-8"))}
+        except Exception:
+            pass
+        return defaults
+
+    def save_settings(self, updates: dict) -> None:
+        settings = self.get_settings()
+        settings.update(updates)
+        _SETTINGS_PATH.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+
+    # ── Rate Limiting ────────────────────────────────────────────────────
 
     def should_check(self) -> bool:
-        """Rate-limit: only check once per CHECK_INTERVAL_HOURS."""
+        """Return True if enough time has passed since last check."""
         try:
             if _LAST_CHECK_PATH.exists():
-                last = float(_LAST_CHECK_PATH.read_text().strip())
-                if time.time() - last < self.CHECK_INTERVAL_HOURS * 3600:
+                last = float(_LAST_CHECK_PATH.read_text(encoding="utf-8").strip())
+                if time.time() - last < _CHECK_COOLDOWN_SECONDS:
                     return False
         except Exception:
             pass
         return True
 
     def mark_checked(self) -> None:
-        _LAST_CHECK_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _LAST_CHECK_PATH.write_text(str(time.time()))
+        _LAST_CHECK_PATH.write_text(str(time.time()), encoding="utf-8")
 
-    def check_for_update(self, force: bool = False) -> UpdateManifest | None:
-        """Check remote manifest. Returns manifest if update available, else None."""
-        import urllib.request
-        import urllib.error
+    # ── Journal ──────────────────────────────────────────────────────────
 
-        logger.info("[UPDATER] Checking for updates (force=%s)...", force)
+    def _journal(self, stage: str, **kw) -> None:
+        entry = {"ts": time.time(), "stage": stage, **kw}
+        try:
+            with open(_JOURNAL_PATH, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception:
+            pass
 
-        if not force and not self.should_check():
-            logger.info("[UPDATER] Skipping check (recently checked)")
-            return None
+    # ── GitHub API Discovery ─────────────────────────────────────────────
 
-        self._set_state(UpdateState.CHECKING, "Checking for updates...")
-        self.mark_checked()
+    def _fetch_github_latest(self) -> dict | None:
+        """Fetch latest release from GitHub API."""
+        from version import GITHUB_REPO
+        url = self.GITHUB_API_URL.format(repo=GITHUB_REPO)
+
+        req = urllib.request.Request(url, headers={
+            "Accept": "application/vnd.github+json",
+            "User-Agent": _USER_AGENT,
+        })
 
         try:
-            logger.info("[UPDATER] Fetching manifest from: %s", self.MANIFEST_URL)
-            req = urllib.request.Request(
-                self.MANIFEST_URL,
-                headers={"User-Agent": "SONIC-AI-Updater/1.0"},
-            )
             with urllib.request.urlopen(req, timeout=15) as resp:
-                data = json.loads(resp.read())
-            logger.info("[UPDATER] Manifest received: version=%s, channel=%s", data.get("version"), data.get("channel"))
-        except (urllib.error.URLError, OSError, json.JSONDecodeError) as e:
-            logger.warning("[UPDATER] Check failed (network): %s", e)
-            self._set_state(UpdateState.IDLE, error=f"Check failed: {e}")
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                logger.info("[UPDATER] No releases found")
+            else:
+                logger.warning("[UPDATER] GitHub API error %d", e.code)
+            return None
+        except Exception as e:
+            logger.warning("[UPDATER] GitHub API request failed: %s", e)
             return None
 
-        manifest = UpdateManifest.from_dict(data)
+    def check_for_update(self, force: bool = False) -> UpdateManifest | None:
+        """Check GitHub for latest stable release. Returns manifest or None."""
+        from version import APP_VERSION, is_newer, APP_CHANNEL
 
-        if not manifest.version:
-            logger.warning("[UPDATER] Invalid manifest: no version")
-            self._set_state(UpdateState.IDLE, error="Invalid manifest: no version")
+        if not force and not self.should_check():
             return None
 
-        from version import APP_VERSION, is_newer, is_compatible, APP_CHANNEL
+        self.mark_checked()
+        self._journal("checking")
 
-        logger.info("[UPDATER] Local: v%s, Remote: v%s, Channel: %s", APP_VERSION, manifest.version, APP_CHANNEL)
+        release_data = self._fetch_github_latest()
+        if release_data is None:
+            self._journal("check_failed", reason="github_unavailable")
+            return None
 
-        # Channel filter — only show updates for same channel
-        if manifest.channel != APP_CHANNEL:
-            logger.info("[UPDATER] Ignoring %s channel (we are %s)", manifest.channel, APP_CHANNEL)
-            self._set_state(UpdateState.IDLE)
+        manifest = UpdateManifest.from_github_release(release_data, channel=APP_CHANNEL)
+        if manifest is None:
+            self._journal("check_failed", reason="invalid_release")
             return None
 
         # Downgrade protection
         if not is_newer(manifest.version, APP_VERSION):
-            logger.info("[UPDATER] Already up to date (%s)", APP_VERSION)
-            self._set_state(UpdateState.IDLE, "You're up to date!")
+            self._journal("no_update", remote=manifest.version, local=APP_VERSION)
             return None
 
-        # Minimum version check
+        # Minimum supported version check
+        from version import is_compatible
         if not is_compatible(manifest.minimum_supported_version):
-            logger.warning("[UPDATER] Version too old: %s < %s", APP_VERSION, manifest.minimum_supported_version)
-            self._set_state(
-                UpdateState.IDLE,
-                error=f"Your version ({APP_VERSION}) is too old. "
-                      f"Minimum: {manifest.minimum_supported_version}. "
-                      "Please reinstall from sonic-ai.dev.",
-            )
+            self._journal("incompatible", remote=manifest.version)
             return None
 
-        logger.info("[UPDATER] Update available: v%s -> v%s", APP_VERSION, manifest.version)
-        self.manifest = manifest
-        self._set_state(
-            UpdateState.AVAILABLE,
-            f"Update available: v{manifest.version}",
-        )
-        # Cache manifest
-        try:
-            _MANIFEST_CACHE.write_text(json.dumps(data, indent=2))
-        except Exception:
-            pass
+        self._journal("update_available", remote=manifest.version)
+        self._emit("update_available", manifest.to_dict())
         return manifest
 
     # ── Download ─────────────────────────────────────────────────────────
 
-    def download_update(self, manifest: UpdateManifest | None = None) -> Path | None:
-        """Download update package to staging directory. Returns path to zip."""
-        manifest = manifest or self.manifest
-        if not manifest or not manifest.download_url:
-            self._set_state(UpdateState.FAILED, error="No manifest or download URL")
-            return None
+    def calculate_sha256(self, file_path: Path) -> str:
+        """Calculate SHA-256 hash of a file."""
+        sha256 = hashlib.sha256()
+        with open(file_path, "rb") as f:
+            while chunk := f.read(65536):
+                sha256.update(chunk)
+        return sha256.hexdigest()
 
-        self._set_state(UpdateState.DOWNLOADING, f"Downloading v{manifest.version}...")
-        _STAGING_DIR.mkdir(parents=True, exist_ok=True)
+    def download_update(
+        self,
+        manifest: UpdateManifest,
+        progress_cb: Callable[[float, str], None] | None = None,
+    ) -> Path | None:
+        """Download installer to staging dir. Returns path or None."""
+        dest = _DOWNLOAD_DIR / manifest.asset_name
 
-        zip_path = _STAGING_DIR / f"sonic-v{manifest.version}.zip"
+        self._journal("download_started", url=manifest.download_url, dest=str(dest))
+        self._emit("download_started", {"url": manifest.download_url})
 
-        # Resume support — check partial download
-        downloaded = 0
-        if zip_path.exists():
-            downloaded = zip_path.stat().st_size
-            if manifest.size_bytes and downloaded >= manifest.size_bytes:
-                logger.info("[UPDATER] Partial file already complete")
-                self.progress.percent = 100.0
-                self._emit()
-                return zip_path
-
-        import urllib.request
-
-        headers = {"User-Agent": "SONIC-AI-Updater/1.0"}
-        if downloaded > 0:
-            headers["Range"] = f"bytes={downloaded}-"
-
-        req = urllib.request.Request(manifest.download_url, headers=headers)
-
-        max_retries = 3
-        for attempt in range(max_retries):
+        for attempt in range(_MAX_RETRIES):
             try:
-                with urllib.request.urlopen(req, timeout=30) as resp:
-                    # Check if server supports range
-                    code = resp.getcode()
-                    if code == 206:
-                        mode = "ab"
-                    elif downloaded > 0 and code == 200:
-                        mode = "wb"  # server doesn't support range, restart
-                        downloaded = 0
-                    else:
-                        mode = "wb"
-                        downloaded = 0
+                if progress_cb:
+                    progress_cb(0, f"Downloading... (attempt {attempt + 1}/{_MAX_RETRIES})")
 
-                    total = manifest.size_bytes or int(resp.headers.get("Content-Length", 0))
-                    self.progress.total_bytes = total
+                req = urllib.request.Request(manifest.download_url, headers={
+                    "User-Agent": _USER_AGENT,
+                })
 
-                    with open(zip_path, mode) as f:
+                with urllib.request.urlopen(req, timeout=_DOWNLOAD_TIMEOUT) as resp:
+                    total = int(resp.headers.get("Content-Length", 0))
+                    downloaded = 0
+                    sha256 = hashlib.sha256()
+
+                    with open(dest, "wb") as f:
                         while True:
                             chunk = resp.read(65536)
                             if not chunk:
                                 break
                             f.write(chunk)
+                            sha256.update(chunk)
                             downloaded += len(chunk)
-                            if total > 0:
-                                self.progress.percent = (downloaded / total) * 100
-                                self.progress.downloaded_bytes = downloaded
-                                self._emit()
 
-                logger.info("[UPDATER] Download complete: %d bytes", downloaded)
-                return zip_path
+                            if total > 0 and progress_cb:
+                                pct = (downloaded / total) * 100
+                                mb_done = downloaded / (1024 * 1024)
+                                mb_total = total / (1024 * 1024)
+                                progress_cb(pct, f"{mb_done:.1f}/{mb_total:.1f} MB")
 
-            except (urllib.error.URLError, OSError) as e:
-                logger.warning("[UPDATER] Download attempt %d failed: %s", attempt + 1, e)
-                if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)
+                # Verify hash if manifest provides one
+                actual_hash = sha256.hexdigest()
+                if manifest.sha256 and manifest.sha256 != actual_hash:
+                    self._journal("hash_mismatch", expected=manifest.sha256, actual=actual_hash)
+                    dest.unlink(missing_ok=True)
+                    if progress_cb:
+                        progress_cb(0, "Hash mismatch — retrying...")
+                    time.sleep(_RETRY_DELAY * (attempt + 1))
                     continue
-                self._set_state(UpdateState.FAILED, error=f"Download failed: {e}")
-                # Clean up partial download
-                try:
-                    zip_path.unlink(missing_ok=True)
-                except Exception:
-                    pass
-                return None
 
+                self._journal("download_completed", path=str(dest), size=dest.stat().st_size)
+                self._emit("download_completed", {"path": str(dest)})
+                if progress_cb:
+                    progress_cb(100, "Download complete")
+                return dest
+
+            except Exception as e:
+                logger.warning("[UPDATER] Download attempt %d failed: %s", attempt + 1, e)
+                self._journal("download_error", attempt=attempt + 1, error=str(e))
+                if attempt < _MAX_RETRIES - 1:
+                    time.sleep(_RETRY_DELAY * (attempt + 1))
+
+        self._journal("download_failed", reason="all_retries_exhausted")
+        dest.unlink(missing_ok=True)
         return None
 
-    # ── Verification ─────────────────────────────────────────────────────
+    # ── Verify ───────────────────────────────────────────────────────────
 
-    def verify_integrity(self, zip_path: Path, expected_sha256: str) -> bool:
-        """Verify SHA-256 of downloaded package."""
-        self._set_state(UpdateState.VERIFYING, "Verifying integrity...")
-
+    def verify_artifact(self, path: Path, expected_sha256: str) -> bool:
+        """Verify SHA-256 hash of downloaded artifact."""
+        if not path.exists():
+            return False
         if not expected_sha256:
-            logger.warning("[UPDATER] No SHA-256 in manifest — skipping hash check")
-            return True
+            return True  # No hash to verify against
+        actual = self.calculate_sha256(path)
+        return actual == expected_sha256
 
-        sha256 = hashlib.sha256()
-        try:
-            with open(zip_path, "rb") as f:
-                while True:
-                    chunk = f.read(65536)
-                    if not chunk:
-                        break
-                    sha256.update(chunk)
-        except OSError as e:
-            self._set_state(UpdateState.FAILED, error=f"Hash check failed: {e}")
-            return False
+    # ── Install ──────────────────────────────────────────────────────────
 
-        actual = sha256.hexdigest()
-        if actual.lower() != expected_sha256.lower():
-            logger.error("[UPDATER] SHA-256 mismatch: expected %s, got %s", expected_sha256, actual)
-            self._set_state(UpdateState.FAILED, error=" Integrity check failed — package corrupted")
-            # Delete corrupted package
-            try:
-                zip_path.unlink(missing_ok=True)
-            except Exception:
-                pass
-            return False
+    def find_updater_helper(self) -> Path | None:
+        """Find SONIC-Updater.exe."""
+        # Check alongside current EXE
+        import sys
+        if getattr(sys, "frozen", False):
+            app_dir = Path(sys.executable).parent
+            helper = app_dir / "SONIC-Updater.exe"
+            if helper.exists():
+                return helper
 
-        logger.info("[UPDATER] SHA-256 verified: %s", actual[:16])
-        return True
-
-    # ── Backup ───────────────────────────────────────────────────────────
-
-    def create_backup(self) -> Path | None:
-        """Backup current application EXE for rollback."""
-        self._set_state(UpdateState.STAGING, "Creating backup...")
-
-        from version import APP_VERSION
-        backup = _BACKUP_DIR / f"v{APP_VERSION}_{int(time.time())}"
-        backup.mkdir(parents=True, exist_ok=True)
-
-        # Backup the EXE
-        try:
-            exe_path = _APP_DIR / "SONIC-AI.exe"
-            if not exe_path.exists():
-                # Try parent directory
-                exe_path = _APP_DIR.parent / "SONIC-AI.exe"
-
-            if exe_path.exists():
-                shutil.copy2(exe_path, backup / "SONIC-AI.exe")
-                logger.info("[UPDATER] EXE backed up: %s", exe_path)
-            else:
-                # Fallback: backup entire directory (for source installations)
-                for item in _APP_DIR.iterdir():
-                    if item.name in ("__pycache__", ".pytest_cache", ".git", "user_secrets"):
-                        continue
-                    if item.name.startswith("."):
-                        continue
-                    dest = backup / item.name
-                    if item.is_dir():
-                        shutil.copytree(item, dest, ignore=shutil.ignore_patterns(
-                            "__pycache__", ".pytest_cache", ".git", "*.pyc"
-                        ))
-                    else:
-                        shutil.copy2(item, dest)
-                logger.info("[UPDATER] Full backup created (source mode)")
-
-            return backup
-        except Exception as e:
-            logger.error("[UPDATER] Backup failed: %s", e)
-            self._set_state(UpdateState.FAILED, error=f"Backup failed: {e}")
-            return None
-
-    # ── Install (uses updater helper for safe replacement) ────────────────
-
-    def install_update(self, zip_path: Path, backup_path: Path) -> bool:
-        """Stage update and launch updater helper for safe replacement."""
-        self._set_state(UpdateState.WAITING_TO_INSTALL, "Ready to install. App will restart.")
-
-        # Write update journal for crash recovery
-        self._write_update_journal(zip_path, backup_path)
-
-        # Extract zip to staging
-        extract_dir = _STAGING_DIR / "extracted"
-        extract_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            with zipfile.ZipFile(zip_path, "r") as zf:
-                zf.extractall(extract_dir)
-        except (zipfile.BadZipFile, OSError) as e:
-            self._set_state(UpdateState.FAILED, error=f"Extract failed: {e}")
-            return False
-
-        # Find the new EXE inside the zip
-        new_exe = None
-        for child in extract_dir.rglob("SONIC-AI.exe"):
-            new_exe = child
-            break
-
-        # Fallback: look for any .exe
-        if not new_exe:
-            for child in extract_dir.rglob("*.exe"):
-                new_exe = child
-                break
-
-        if not new_exe:
-            self._set_state(UpdateState.FAILED, error="No EXE found in update package")
-            return False
-
-        # Target EXE path — find where SONIC-AI.exe actually lives
-        target_exe = None
+        # Check in project root (development)
+        project_dir = Path(__file__).resolve().parent.parent
         for candidate in [
-            Path(sys.executable).resolve() if getattr(sys, 'frozen', False) else None,
-            _APP_DIR / "SONIC-AI.exe",
-            _APP_DIR.parent / "SONIC-AI.exe",
+            project_dir / "dist" / "SONIC-Updater.exe",
+            project_dir / "SONIC-Updater.exe",
         ]:
-            if candidate and candidate.exists():
-                target_exe = candidate
-                break
+            if candidate.exists():
+                return candidate
 
-        if not target_exe:
-            self._set_state(UpdateState.FAILED, error="Cannot find running SONIC-AI.exe")
-            return False
-
-        logger.info("[UPDATER] Target EXE: %s", target_exe)
-        logger.info("[UPDATER] New EXE: %s", new_exe)
-
-        # Find or build updater helper
-        updater_helper = self._find_updater_helper()
-        if not updater_helper:
-            logger.warning("[UPDATER] Updater helper not found — using direct swap fallback")
-            return self._direct_exe_swap(new_exe, target_exe, backup_path)
-
-        # Launch updater helper
-        try:
-            cmd = [
-                str(updater_helper),
-                str(new_exe),
-                str(target_exe),
-                str(backup_path),
-            ]
-            logger.info("[UPDATER] Launching updater helper: %s", cmd)
-
-            subprocess.Popen(
-                cmd,
-                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
-                close_fds=True,
-            )
-
-            self._set_state(UpdateState.INSTALLING, "Update installed. Restarting...")
-            return True
-
-        except Exception as e:
-            logger.error("[UPDATER] Failed to launch updater helper: %s", e)
-            return self._direct_exe_swap(new_exe, target_exe, backup_path)
-
-    def _find_updater_helper(self) -> Path | None:
-        """Find the updater helper executable."""
-        candidates = [
-            _APP_DIR / "SONIC-Updater.exe",
-            _APP_DIR.parent / "SONIC-Updater.exe",
-            _APP_DIR / "updater" / "SONIC-Updater.exe",
-        ]
-        for p in candidates:
-            if p.exists():
-                return p
         return None
 
-    def _direct_exe_swap(self, new_exe: Path, target_exe: Path, backup_path: Path) -> bool:
-        """Direct EXE swap fallback when updater helper is not available."""
+    def install_update(self, artifact_path: Path, manifest: UpdateManifest) -> bool:
+        """Launch updater helper and exit SONIC. Returns True if helper launched."""
+        import subprocess
+        import sys
+
+        helper = self.find_updater_helper()
+        if not helper:
+            self._journal("install_failed", reason="updater_helper_not_found")
+            logger.error("[UPDATER] SONIC-Updater.exe not found")
+            return False
+
+        if getattr(sys, "frozen", False):
+            target_exe = Path(sys.executable)
+        else:
+            target_exe = Path(__file__).resolve().parent.parent / "dist" / "SONIC-AI.exe"
+
+        backup_dir = _BACKUP_DIR / f"v{manifest.version}"
+        backup_dir.mkdir(parents=True, exist_ok=True)
+
+        self._journal("install_started", helper=str(helper), target=str(target_exe))
+        self._emit("install_started", {})
+
         try:
-            old_exe = target_exe.with_suffix(".exe.old")
-            if old_exe.exists():
-                old_exe.unlink(missing_ok=True)
-
-            target_exe.rename(old_exe)
-            logger.info("[UPDATER] Renamed old EXE to %s", old_exe.name)
-
-            shutil.copy2(new_exe, target_exe)
-            logger.info("[UPDATER] Copied new EXE to %s", target_exe)
-
             subprocess.Popen(
-                [str(target_exe)],
+                [str(helper), str(artifact_path), str(target_exe), str(backup_dir)],
                 creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
                 close_fds=True,
             )
-            logger.info("[UPDATER] New EXE launched")
-
-            self._set_state(UpdateState.INSTALLING, "Update installed. Restarting...")
-            return True
-
+            # Give helper a moment to start, then exit SONIC
+            time.sleep(1)
+            self._journal("sonic_exiting")
+            os._exit(0)
         except Exception as e:
-            logger.error("[UPDATER] Direct swap failed: %s", e)
-            try:
-                if old_exe.exists() and not target_exe.exists():
-                    old_exe.rename(target_exe)
-                    logger.info("[UPDATER] Rolled back to old EXE")
-            except Exception:
-                pass
-            self._set_state(UpdateState.FAILED, error=f"Install failed: {e}")
+            self._journal("install_failed", reason=str(e))
+            logger.error("[UPDATER] Failed to launch helper: %s", e)
             return False
-
-    def _write_update_journal(self, zip_path: Path, backup_path: Path) -> None:
-        """Write update journal for crash recovery."""
-        journal = {
-            "update_attempt_id": f"{int(time.time())}",
-            "source_version": self._get_current_version(),
-            "target_version": self.manifest.version if self.manifest else "unknown",
-            "stage": "installing",
-            "timestamp": datetime.now().isoformat(),
-            "zip_path": str(zip_path),
-            "backup_path": str(backup_path),
-        }
-        journal_path = _UPDATES_DIR / "update_journal.json"
-        try:
-            journal_path.write_text(json.dumps(journal, indent=2), encoding="utf-8")
-            logger.info("[UPDATER] Update journal written: %s", journal_path)
-        except Exception as e:
-            logger.warning("[UPDATER] Failed to write journal: %s", e)
-
-    def _get_current_version(self) -> str:
-        """Get current app version."""
-        try:
-            from version import APP_VERSION
-            return APP_VERSION
-        except Exception:
-            return "unknown"
-
-    def check_incomplete_update(self) -> bool:
-        """Check for incomplete update from previous session."""
-        journal_path = _UPDATES_DIR / "update_journal.json"
-        if not journal_path.exists():
-            return False
-
-        try:
-            journal = json.loads(journal_path.read_text(encoding="utf-8"))
-            if journal.get("stage") == "installing":
-                logger.info("[UPDATER] Found incomplete update from previous session")
-                # Try to recover or clean up
-                journal_path.unlink(missing_ok=True)
-                return True
-        except Exception:
-            pass
-
-        return False
 
     # ── Rollback ─────────────────────────────────────────────────────────
 
-    def rollback(self, backup_path: Path) -> bool:
-        """Restore from backup."""
-        self._set_state(UpdateState.ROLLING_BACK, "Rolling back to previous version...")
+    def find_backup(self) -> Path | None:
+        """Find most recent backup."""
+        if not _BACKUP_DIR.exists():
+            return None
+        backups = sorted(_BACKUP_DIR.iterdir(), reverse=True)
+        for b in backups:
+            exe = b / "SONIC-AI.exe"
+            if exe.exists():
+                return b
+        return None
 
-        if not backup_path.exists():
-            self._set_state(UpdateState.FAILED, error="Backup not found for rollback")
+    def rollback(self) -> bool:
+        """Restore from most recent backup."""
+        backup = self.find_backup()
+        if not backup:
+            self._journal("rollback_failed", reason="no_backup")
             return False
 
+        import sys
+        if getattr(sys, "frozen", False):
+            target = Path(sys.executable)
+        else:
+            return False
+
+        backup_exe = backup / "SONIC-AI.exe"
         try:
-            # Check if backup contains EXE (new-style) or full directory (old-style)
-            backup_exe = backup_path / "SONIC-AI.exe"
-            if backup_exe.exists():
-                # New-style: restore EXE
-                target_exe = _APP_DIR / "SONIC-AI.exe"
-                if not target_exe.exists():
-                    target_exe = _APP_DIR.parent / "SONIC-AI.exe"
-                shutil.copy2(backup_exe, target_exe)
-                logger.info("[UPDATER] EXE restored from backup")
-            else:
-                # Old-style: restore full directory
-                for item in _APP_DIR.iterdir():
-                    if item.name in ("__pycache__", ".pytest_cache", ".git", "user_secrets"):
-                        continue
-                    if item.name.startswith("."):
-                        continue
-                    if item == _UPDATES_DIR.parent:
-                        continue
-                    if item.is_dir():
-                        shutil.rmtree(item, ignore_errors=True)
-                    else:
-                        item.unlink(missing_ok=True)
-
-                # Restore from backup
-                for item in backup_path.iterdir():
-                    dest = _APP_DIR / item.name
-                    if item.is_dir():
-                        shutil.copytree(item, dest)
-                    else:
-                        shutil.copy2(item, dest)
-                logger.info("[UPDATER] Full restore from backup")
-
-            logger.info("[UPDATER] Rollback complete")
-            self._set_state(UpdateState.ROLLED_BACK, "Rolled back successfully")
+            target.unlink(missing_ok=True)
+            import shutil
+            shutil.copy2(backup_exe, target)
+            self._journal("rollback_completed", backup=str(backup))
             return True
         except Exception as e:
-            logger.error("[UPDATER] Rollback failed: %s", e)
-            self._set_state(UpdateState.FAILED, error=f"Rollback failed: {e}")
+            self._journal("rollback_failed", reason=str(e))
             return False
 
-    # ── Settings ─────────────────────────────────────────────────────────
+    # ── Diagnostics ──────────────────────────────────────────────────────
 
-    def get_settings(self) -> dict[str, Any]:
-        defaults = {
-            "auto_check": True,
-            "channel": "stable",
-            "auto_download": False,
-            "auto_install": False,
+    def get_diagnostics(self) -> dict:
+        """Return diagnostic info for settings panel."""
+        from version import APP_VERSION, APP_CHANNEL
+        settings = self.get_settings()
+        last_check = "never"
+        try:
+            if _LAST_CHECK_PATH.exists():
+                ts = float(_LAST_CHECK_PATH.read_text(encoding="utf-8").strip())
+                last_check = time.strftime("%Y-%m-%d %H:%M", time.localtime(ts))
+        except Exception:
+            pass
+
+        return {
+            "current_version": APP_VERSION,
+            "channel": APP_CHANNEL,
+            "auto_check": settings.get("auto_check", True),
+            "last_check": last_check,
+            "updater_dir": str(_UPDATER_DIR),
+            "journal": str(_JOURNAL_PATH),
         }
-        try:
-            if _SETTINGS_PATH.exists():
-                data = json.loads(_SETTINGS_PATH.read_text())
-                defaults.update(data)
-        except Exception:
-            pass
-        return defaults
-
-    def save_settings(self, settings: dict[str, Any]) -> None:
-        _SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
-        _SETTINGS_PATH.write_text(json.dumps(settings, indent=2))
-
-    # ── Internal ─────────────────────────────────────────────────────────
-
-    def _ensure_dirs(self) -> None:
-        for d in (_USER_DATA, _UPDATES_DIR, _STAGING_DIR, _BACKUP_DIR, _DOWNLOAD_DIR):
-            d.mkdir(parents=True, exist_ok=True)
-
-    def cleanup(self) -> None:
-        """Remove staging/downloads and .old files after successful update."""
-        try:
-            shutil.rmtree(_STAGING_DIR, ignore_errors=True)
-            shutil.rmtree(_DOWNLOAD_DIR, ignore_errors=True)
-            # Remove any .old files from previous updates
-            for old_file in _APP_DIR.glob("*.exe.old"):
-                old_file.unlink(missing_ok=True)
-                logger.info("[UPDATER] Cleaned up: %s", old_file.name)
-            for old_file in _APP_DIR.parent.glob("*.exe.old"):
-                old_file.unlink(missing_ok=True)
-                logger.info("[UPDATER] Cleaned up: %s", old_file.name)
-        except Exception:
-            pass
 
 
-# ── Singleton ────────────────────────────────────────────────────────────────
+# ═════════════════════════════════════════════════════════════════════════════
+# Singleton
+# ═════════════════════════════════════════════════════════════════════════════
 
 _manager: UpdateManager | None = None
 
