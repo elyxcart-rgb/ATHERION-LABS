@@ -7,7 +7,7 @@ The updater fetches release info from GitHub API — no hardcoded update URLs he
 from __future__ import annotations
 
 # ── Semantic version (major.minor.patch) ────────────────────────────────────
-APP_VERSION: str = "1.0.2"
+APP_VERSION: str = "1.0.3"
 
 # ── Build metadata (set by release.py) ──────────────────────────────────────
 BUILD_VERSION: str = "1.0.0+build.0"
