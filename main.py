@@ -87,6 +87,9 @@ from actions.recipe_engine     import recipe_engine
 from actions.hologram_mode     import hologram_mode
 from actions.voice_shortcut    import voice_shortcut
 from actions.smart_clipboard   import smart_clipboard
+from actions.autopilot         import get_autopilot
+from actions.translator        import get_translator
+from actions.life_dashboard    import get_life_dashboard
 
 # Location awareness
 from location import LocationContext
@@ -1071,6 +1074,84 @@ TOOL_DECLARATIONS = [
             "required": ["action"],
         },
     },
+    # ── Auto-Pilot ───────────────────────────────────────────────────────
+    {
+        "name": "autopilot",
+        "description": (
+            "Full computer control via voice. Opens apps, clicks buttons, fills forms, "
+            "browses websites, takes screenshots, types text, and more. "
+            "Use when the user wants SONIC to take control and perform tasks automatically."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "command": {
+                    "type": "STRING",
+                    "description": "Natural language command (e.g. 'open Chrome and go to YouTube')",
+                },
+                "action": {
+                    "type": "STRING",
+                    "description": "Direct action: open_app | close_app | screenshot | click | type | copy | paste | scroll",
+                },
+                "app": {"type": "STRING", "description": "App name (for open_app/close_app)"},
+                "url": {"type": "STRING", "description": "URL (for open_url)"},
+                "text": {"type": "STRING", "description": "Text to type"},
+                "target": {"type": "STRING", "description": "Click target"},
+            },
+            "required": ["command"],
+        },
+    },
+    # ── Universal Translator ─────────────────────────────────────────────
+    {
+        "name": "translator",
+        "description": (
+            "Real-time voice translation in 100+ languages with voice cloning. "
+            "Translates text and speech between languages. "
+            "Supports conversation mode, pronunciation guides, and cultural context."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "translate | translate_voice | set_languages | list_languages | clone_voice",
+                },
+                "text": {"type": "STRING", "description": "Text to translate"},
+                "source": {"type": "STRING", "description": "Source language code (e.g. 'en')"},
+                "target": {"type": "STRING", "description": "Target language code (e.g. 'ja')"},
+                "voice_id": {"type": "STRING", "description": "Voice profile ID for cloning"},
+            },
+            "required": ["action"],
+        },
+    },
+    # ── Life Dashboard ───────────────────────────────────────────────────
+    {
+        "name": "life_dashboard",
+        "description": (
+            "Complete life management with AI predictions. Tracks health, finances, "
+            "goals, habits, relationships, and provides insights. "
+            "Calculates overall life score and predicts future outcomes."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": (
+                        "health | finance | goals | habits | relationships | "
+                        "predict | life_score | dashboard | log_health | log_expense | "
+                        "add_goal | add_habit"
+                    ),
+                },
+                "data": {"type": "OBJECT", "description": "Data to log (for log_*)"},
+                "title": {"type": "STRING", "description": "Goal/habit title"},
+                "category": {"type": "STRING", "description": "Category"},
+                "amount": {"type": "NUMBER", "description": "Amount (for finance)"},
+                "description": {"type": "STRING", "description": "Description"},
+            },
+            "required": ["action"],
+        },
+    },
 ]
 
 class _ReconnectSignal(Exception):
@@ -1801,6 +1882,145 @@ class SonicLive:
                     timeout=10
                 )
                 result = r
+
+            # ── Auto-Pilot ───────────────────────────────────────────────
+            elif name == "autopilot":
+                autopilot = get_autopilot()
+                command = args.get("command", "")
+                if args.get("action"):
+                    # Direct action
+                    action = args["action"]
+                    if action == "open_app":
+                        r = await autopilot._open_app(args.get("app", ""))
+                    elif action == "close_app":
+                        r = await autopilot._close_app(args.get("app", ""))
+                    elif action == "screenshot":
+                        r = await autopilot._take_screenshot()
+                    elif action == "click":
+                        r = await autopilot._click_element(args.get("target", ""))
+                    elif action == "type":
+                        r = await autopilot._type_text(args.get("text", ""))
+                    elif action == "copy":
+                        r = await autopilot._copy()
+                    elif action == "paste":
+                        r = await autopilot._paste()
+                    else:
+                        r = {"error": f"Unknown action: {action}"}
+                    result = r.get("message", str(r))
+                elif command:
+                    task = await autopilot.execute_command(command)
+                    result = f"Auto-Pilot: {task.result}" if task.status == "completed" else f"Auto-Pilot failed: {task.error}"
+                else:
+                    result = "Provide a command or action for Auto-Pilot."
+
+            # ── Universal Translator ──────────────────────────────────────
+            elif name == "translator":
+                translator = get_translator()
+                action = args.get("action", "translate")
+
+                if action == "list_languages":
+                    langs = translator.list_languages()
+                    result = f"Supported languages ({len(langs)}): " + ", ".join(f"{l['name']} ({l['code']})" for l in langs[:20]) + "..."
+
+                elif action == "set_languages":
+                    src = args.get("source", "en")
+                    tgt = args.get("target", "es")
+                    if translator.set_languages(src, tgt):
+                        result = f"Languages set: {src} → {tgt}"
+                    else:
+                        result = "Invalid language codes. Use 'list_languages' to see options."
+
+                elif action == "translate":
+                    text = args.get("text", "")
+                    src = args.get("source")
+                    tgt = args.get("target")
+                    r = await translator.translate(text, src, tgt)
+                    result = f"{r.source_text}\n→ {r.translated_text}"
+                    if r.pronunciation:
+                        result += f"\n[Pronunciation: {r.pronunciation}]"
+
+                elif action == "clone_voice":
+                    profile = translator.create_voice_profile("user", [])
+                    translator.set_active_voice(profile.id)
+                    result = f"Voice cloned! Profile ID: {profile.id}"
+
+                else:
+                    result = f"Unknown translator action: {action}"
+
+            # ── Life Dashboard ────────────────────────────────────────────
+            elif name == "life_dashboard":
+                dash = get_life_dashboard()
+                action = args.get("action", "dashboard")
+
+                if action == "dashboard":
+                    summary = dash.get_dashboard_summary()
+                    score = summary["life_score"]
+                    result = (
+                        f"Life Score: {score['overall']}/100 ({score['grade']})\n"
+                        f"Health: {score['health']} | Finance: {score['finance']}\n"
+                        f"Goals: {score['goals']} | Habits: {score['habits']}\n"
+                        f"Social: {score['social']}"
+                    )
+
+                elif action == "health":
+                    insights = dash.get_health_insights()
+                    result = f"Health Score: {insights['health_score']}/100\n"
+                    for insight in insights["insights"]:
+                        result += f"• {insight}\n"
+
+                elif action == "finance":
+                    insights = dash.get_financial_insights()
+                    result = f"Balance: ${insights['balance']:,.2f}\n"
+                    for insight in insights["insights"]:
+                        result += f"• {insight}\n"
+
+                elif action == "goals":
+                    goals = dash.get_goals_summary()
+                    result = f"Goals: {goals['active']} active, {goals['completed']} completed\n"
+                    for g in goals["goals"]:
+                        result += f"• {g['title']}: {g['progress']}%\n"
+
+                elif action == "habits":
+                    habits = dash.get_habits_summary()
+                    result = f"Habits: {habits['completed_today']}/{habits['total']} today\n"
+                    result += f"Best streak: {habits['best_streak']} days\n"
+
+                elif action == "predict":
+                    predictions = dash.predict_future()
+                    result = "AI Predictions:\n"
+                    for p in predictions["predictions"]:
+                        result += f"• [{p['category']}] {p['prediction']}\n"
+
+                elif action == "life_score":
+                    score = dash.get_life_score()
+                    result = f"Life Score: {score['overall']}/100 ({score['grade']})"
+
+                elif action == "log_health":
+                    data = args.get("data", {})
+                    dash.log_health(**data)
+                    result = f"Health logged: {data}"
+
+                elif action == "log_expense":
+                    amount = args.get("amount", 0)
+                    cat = args.get("category", "other")
+                    desc = args.get("description", "")
+                    dash.log_expense(amount, cat, desc)
+                    result = f"Expense logged: ${amount:,.2f} ({cat})"
+
+                elif action == "add_goal":
+                    title = args.get("title", "New Goal")
+                    cat = args.get("category", "personal")
+                    dash.add_goal(title, cat, "2026-12-31")
+                    result = f"Goal added: {title}"
+
+                elif action == "add_habit":
+                    title = args.get("title", "New Habit")
+                    cat = args.get("category", "personal")
+                    dash.add_habit(title, cat)
+                    result = f"Habit added: {title}"
+
+                else:
+                    result = f"Unknown dashboard action: {action}"
 
             else:
                 if self._plugin_registry.has(name):

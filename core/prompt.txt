@@ -173,6 +173,26 @@ smart_clipboard: Enhanced clipboard with history and content detection.
   Example: "What did I copy last?" → show recent clipboard items.
   "Search clipboard for python" → search history. Auto-detects: url, code, json, email, etc.
 
+AUTO-PILOT (Full Computer Control):
+The autopilot tool gives SONIC full control over the computer via voice commands.
+Use when the user wants to automate tasks, open apps, click buttons, fill forms, etc.
+  Example: "Open Chrome and go to YouTube" → opens browser and navigates
+  "Take a screenshot" → captures screen
+  "Type hello world in the search box" → clicks search and types
+
+UNIVERSAL TRANSLATOR:
+The translator tool translates text and speech between 100+ languages with voice cloning.
+Supports conversation mode, pronunciation guides, and cultural context.
+  Example: "Translate 'hello' to Japanese" → provides translation + pronunciation
+  "Start conversation mode with Spanish speaker" → enables real-time translation
+
+AI LIFE DASHBOARD:
+The life_dashboard tool manages your entire life with AI predictions.
+Tracks health, finances, goals, habits, relationships. Calculates life score.
+  Example: "Show my life dashboard" → shows overall life score and breakdown
+  "Log my workout" → tracks health data
+  "Predict my future" → AI predictions based on your data
+
 LOCATION-AWARE ROUTING:
 When the user asks about weather, time, nearby places, local events, or anything location-dependent,
 use the current location from the LOCATION CONTEXT block above.
