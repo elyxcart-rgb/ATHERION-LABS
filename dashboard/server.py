@@ -46,7 +46,7 @@ def _find_free_port(start: int = 8000) -> int:
     import socket as _sock
     for port in range(start, start + 100):
         try:
-            with _sock(_sock.AF_INET, _sock.SOCK_STREAM) as s:
+            with _sock.socket(_sock.AF_INET, _sock.SOCK_STREAM) as s:
                 s.bind(("127.0.0.1", port))
                 return port
         except OSError:
