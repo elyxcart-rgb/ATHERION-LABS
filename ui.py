@@ -3577,9 +3577,16 @@ class MainWindow(QMainWindow):
 
         lay.addSpacing(4)
 
+        # ── Update Section ────────────────────────────────────────────────
+        from version import APP_VERSION
+        ver_label = QLabel(f"SONIC v{APP_VERSION}")
+        ver_label.setStyleSheet("color: #00d4ff; font-size: 8px; font-weight: bold; background: transparent; border: none;")
+        ver_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lay.addWidget(ver_label)
+
         update_btn = HudButton("⬆  CHECK FOR UPDATES",
                                 cuts=[("tl", 4), ("tr", 4), ("bl", 4), ("br", 4)],
-                                border=HU.BORDER, fill=HU.FILL, color=HU.DIM, font_size=7)
+                                border=HU.BRIGHT, fill=HU.FILL2, color=HU.BRIGHT, font_size=7)
         update_btn.setFixedHeight(24)
         update_btn.clicked.connect(self._check_for_updates)
         lay.addWidget(update_btn)
