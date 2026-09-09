@@ -847,7 +847,7 @@ class DashboardServer:
         ssl_cert = BASE_DIR / "config" / "certs" / "sonic.crt"
         asyncio.get_event_loop().run_in_executor(None, _ensure_network_access, PORT + 1)
         cfg = uvicorn.Config(
-            self.app, host="0.0.0.0", port=PORT + 1, log_level="warning",
+            self.app, host="127.0.0.1", port=PORT + 1, log_level="warning",
             ssl_keyfile=str(ssl_key), ssl_certfile=str(ssl_cert),
         )
         print(f"[Dashboard] Manual entry:  {self._ip}:{PORT + 1}  (type in browser, accept cert once)")
@@ -874,11 +874,11 @@ class DashboardServer:
             asyncio.create_task(self._serve_alias())
 
         cfg = uvicorn.Config(
-            self.app, host="0.0.0.0", port=PORT, log_level="warning",
+            self.app, host="127.0.0.1", port=PORT, log_level="warning",
             **({"ssl_keyfile": str(ssl_key), "ssl_certfile": str(ssl_cert)} if use_ssl else {}),
         )
 
         proto = "https" if use_ssl else "http"
-        print(f"[Dashboard] {proto}://{self._ip}:{PORT}")
+        print(f"[Dashboard] {proto}://127.0.0.1:{PORT}")
         print("[Dashboard] Press 'Remote Control' in SONIC UI to get the QR code.")
         await uvicorn.Server(cfg).serve()

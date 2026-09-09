@@ -65,7 +65,20 @@ def _available(module: str) -> bool:
     return importlib.util.find_spec(module) is not None
 
 
+def _validate_package_name(name: str) -> bool:
+    """Validate pip package name to prevent injection."""
+    import re as _re
+    if not name or len(name) > 200:
+        return False
+    # Only allow valid pip package characters
+    return bool(_re.match(r'^[a-zA-Z0-9]([a-zA-Z0-9._\-\[\]>=<, ]*[a-zA-Z0-9\]])?$', name.strip()))
+
+
 def _pip(package: str, log: Callable | None = None) -> bool:
+    if not _validate_package_name(package):
+        if log:
+            log(f"ERR: Invalid package name: {package}")
+        return False
     if log:
         log(f"SYS: pip install {package} …")
     result = subprocess.run(

@@ -204,6 +204,9 @@ Fixed code:"""
 
 
 def _run_file(path: Path, args: list, timeout: int) -> str:
+    from actions.sandbox import scan_code, ThreatLevel
+    from actions.sandbox import validate_package_name
+
     interpreters = {
         ".py":  [sys.executable],
         ".js":  ["node"],
@@ -216,6 +219,21 @@ def _run_file(path: Path, args: list, timeout: int) -> str:
     interp = interpreters.get(path.suffix.lower())
     if not interp:
         return f"No interpreter for {path.suffix}."
+
+    # Security scan before execution
+    try:
+        code = path.read_text(encoding="utf-8", errors="replace")
+        scan = scan_code(code)
+        if scan.level == ThreatLevel.BLOCKED:
+            return (
+                "🚫 Code execution BLOCKED by security scanner.\n\n"
+                f"Threats detected:\n{scan.summary}\n\n"
+                "The code contains potentially dangerous patterns and was not executed."
+            )
+        if scan.level == ThreatLevel.SUSPICIOUS:
+            logger.warning("[Code] Suspicious patterns detected but allowing execution")
+    except Exception:
+        pass  # Can't read file, proceed with execution anyway
 
     try:
         result = subprocess.run(

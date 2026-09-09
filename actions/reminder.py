@@ -34,14 +34,21 @@ def _scripts_dir() -> Path:
 
 
 def _sanitise(text: str, max_len: int = 200) -> str:
-    return (
-        text.replace("\\", "")
-            .replace('"', "")
-            .replace("'", "")
-            .replace("\n", " ")
-            .replace("\r", "")
-            .strip()
-    )[:max_len]
+    """Sanitise text for safe embedding in generated scripts."""
+    import re as _re
+    # Remove all control characters
+    text = _re.sub(r'[\x00-\x1f\x7f-\x9f]', '', text)
+    # Remove backslashes, quotes, and template literals
+    text = text.replace("\\", "")
+    text = text.replace('"', "")
+    text = text.replace("'", "")
+    text = text.replace("`", "")
+    text = text.replace("${", "")
+    # Remove newlines
+    text = text.replace("\n", " ").replace("\r", " ").replace("\t", " ")
+    # Collapse whitespace
+    text = " ".join(text.split())
+    return text.strip()[:max_len]
 
 def _write_notify_script(task_name: str, message: str, os_name: str) -> Path:
     script_path = _scripts_dir() / f"{task_name}.py"

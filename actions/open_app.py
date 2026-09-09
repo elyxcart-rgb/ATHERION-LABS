@@ -237,6 +237,15 @@ _OS_LAUNCHERS = {
     "Linux":   _launch_linux,
 }
 
+def _validate_app_name(name: str) -> bool:
+    """Validate app name to prevent command injection."""
+    if not name or len(name) > 100:
+        return False
+    # Block shell metacharacters
+    dangerous = set(';&|`$(){}[]!#~<>?\\')
+    return not any(c in dangerous for c in name)
+
+
 def open_app(
     parameters=None,
     response=None,
@@ -247,6 +256,9 @@ def open_app(
 
     if not app_name:
         return "No application name provided."
+
+    if not _validate_app_name(app_name):
+        return f"Invalid application name: contains disallowed characters."
 
     launcher = _OS_LAUNCHERS.get(_SYSTEM)
     if launcher is None:

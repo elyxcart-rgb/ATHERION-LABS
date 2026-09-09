@@ -21,7 +21,7 @@ _LOCAL_CREDS_PATH = _AUTH_DIR / ".local_users.json"
 _GOOGLE_CRED_PATH = _AUTH_DIR / ".google_credentials.json"
 
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
-_MIN_PASS_LEN = 6
+_MIN_PASS_LEN = 8
 _MAX_RETRIES = 3
 _RETRY_DELAY = 1.0
 
