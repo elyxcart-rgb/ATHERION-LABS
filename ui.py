@@ -3577,6 +3577,14 @@ class MainWindow(QMainWindow):
 
         lay.addSpacing(4)
 
+        # ── Security Section ──────────────────────────────────────────────
+        sec_btn = HudButton("🔒  SECURITY",
+                            cuts=[("tl", 4), ("tr", 4), ("bl", 4), ("br", 4)],
+                            border=HU.BRIGHT, fill=HU.FILL2, color=HU.BRIGHT, font_size=7)
+        sec_btn.setFixedHeight(24)
+        sec_btn.clicked.connect(self._show_security_dashboard)
+        lay.addWidget(sec_btn)
+
         # ── Update Section ────────────────────────────────────────────────
         from version import APP_VERSION
         ver_label = QLabel(f"SONIC v{APP_VERSION}")
@@ -4096,6 +4104,68 @@ class MainWindow(QMainWindow):
             self._show_auth()
         except Exception as e:
             self._log.append_log(f"ERR: Logout failed — {e}")
+
+    def _show_security_dashboard(self):
+        """Show security status in content panel."""
+        try:
+            from security.advanced import get_security_status, security_health_check
+            status = get_security_status()
+            healthy, issues = security_health_check()
+
+            lines = ["═" * 40]
+            lines.append("  🔒  SECURITY STATUS")
+            lines.append("═" * 40)
+
+            # Health
+            if healthy:
+                lines.append("  ✅ Status: ALL SYSTEMS SECURE")
+            else:
+                lines.append("  ⚠️  Status: ISSUES DETECTED")
+                for issue in issues:
+                    lines.append(f"     • {issue}")
+
+            lines.append("")
+
+            # Rate Limiter
+            rate = status.get("rate_limiter", {})
+            lines.append("  🛡️  RATE LIMITER")
+            lines.append(f"     Active keys: {rate.get('active_keys', 0)}")
+            lines.append(f"     Locked accounts: {rate.get('locked_keys', 0)}")
+            lines.append(f"     Total attempts: {rate.get('total_attempts', 0)}")
+            lines.append("")
+
+            # Audit Log
+            audit = status.get("audit_log", {})
+            lines.append("  📋 AUDIT LOG")
+            lines.append(f"     Chain valid: {'✅' if audit.get('valid') else '❌'}")
+            lines.append(f"     Entries: {audit.get('entries', 0)}")
+            lines.append("")
+
+            # Intrusion Detection
+            ids = status.get("intrusion_detection", {})
+            lines.append("  🔍 INTRUSION DETECTION")
+            lines.append(f"     Threats (24h): {ids.get('total_threats_24h', 0)}")
+            lines.append(f"     Threats (1h): {ids.get('threats_last_hour', 0)}")
+            lines.append(f"     Blocked: {ids.get('blocked_count', 0)}")
+            lines.append("")
+
+            # Sessions
+            lines.append("  👤 SESSIONS")
+            lines.append(f"     Active: {status.get('active_sessions', 0)}")
+            lines.append("")
+
+            # API Keys
+            keys = status.get("api_keys", {})
+            lines.append("  🔑 API KEYS")
+            lines.append(f"     Active: {keys.get('active_keys', 0)}")
+            lines.append(f"     Expired: {keys.get('expired_keys', 0)}")
+
+            lines.append("═" * 40)
+
+            self.show_content("SECURITY STATUS", "\n".join(lines))
+
+        except Exception as e:
+            self.show_content("SECURITY", f"Error loading security status: {e}")
 
     def _check_for_updates(self):
         """Manual update check from settings."""
