@@ -69,11 +69,10 @@ class ProcessManager:
             else:
                 cmd = [opencode, "run", "-m", "opencode/mimo-v2.5-free", "--file", prompt_file]
 
-        env = os.environ.copy()
-        env["OPENCODE_PROJECT_ROOT"] = project_root
+            env = os.environ.copy()
+            env["OPENCODE_PROJECT_ROOT"] = project_root
 
-        task.state = TaskState.EXECUTING
-        try:
+            task.state = TaskState.EXECUTING
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
