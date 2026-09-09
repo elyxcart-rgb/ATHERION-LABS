@@ -2,6 +2,7 @@
 
 Scans LLM-generated code for dangerous patterns before execution.
 Blocks destructive commands, filesystem escapes, and network exfiltration.
+Integrates with intrusion detection system.
 """
 from __future__ import annotations
 
@@ -102,8 +103,8 @@ _SUSPICIOUS_PATTERNS: list[tuple[str, str]] = [
 ]
 
 
-def scan_code(code: str) -> ScanResult:
-    """Scan code for dangerous patterns."""
+def scan_code(code: str, source: str = "code_exec") -> ScanResult:
+    """Scan code for dangerous patterns and report to IDS."""
     result = ScanResult()
     lines = code.split("\n")
 
@@ -126,7 +127,15 @@ def scan_code(code: str) -> ScanResult:
                     result.level = ThreatLevel.SUSPICIOUS
                 result.threats.append(f"L{line_no}: {desc}")
 
+    # Report to intrusion detection system
     if result.threats:
+        try:
+            from security.advanced import ids, ThreatLevel as IDSThreatLevel
+            for threat_desc in result.threats:
+                ids.check_input(threat_desc, source=source)
+        except ImportError:
+            pass
+
         logger.warning("[Sandbox] %d threat(s) found: %s",
                        len(result.threats), result.level.value)
 
@@ -168,3 +177,48 @@ def sanitize_filename(name: str) -> str:
     # Strip dots and spaces
     name = name.strip(". ")
     return name
+
+
+def check_input_safety(input_str: str, source: str = "user") -> list[str]:
+    """Check user input against threat signatures. Returns list of threats found."""
+    threats = []
+
+    # SQL injection patterns
+    sql_patterns = [
+        r"(?i)(union\s+select|or\s+1\s*=\s*1|drop\s+table)",
+        r"(?i)(insert\s+into|delete\s+from|update\s+.*set)",
+    ]
+    for pattern in sql_patterns:
+        if re.search(pattern, input_str):
+            threats.append("SQL Injection attempt detected")
+            break
+
+    # XSS patterns
+    xss_patterns = [
+        r"<script[^>]*>|javascript:",
+        r"on\w+\s*=\s*['\"]",
+    ]
+    for pattern in xss_patterns:
+        if re.search(pattern, input_str, re.IGNORECASE):
+            threats.append("XSS attempt detected")
+            break
+
+    # Path traversal
+    if "../" in input_str or "..\\" in input_str:
+        threats.append("Path traversal attempt detected")
+
+    # Command injection
+    cmd_chars = set(';&|`$')
+    if any(c in input_str for c in cmd_chars):
+        threats.append("Potential command injection detected")
+
+    # Report to IDS
+    if threats:
+        try:
+            from security.advanced import ids
+            for threat in threats:
+                ids.check_input(threat, source=source)
+        except ImportError:
+            pass
+
+    return threats

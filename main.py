@@ -38,6 +38,19 @@ except ImportError:
     _OpenCodeAdapter = None   # type: ignore[assignment,misc]
     _CodingIntent = None      # type: ignore[assignment,misc]
 
+# ── Security system ──────────────────────────────────────────────────────
+try:
+    from security.advanced import (
+        auth_limiter as _auth_limiter,
+        audit as _audit,
+        ids as _ids,
+        sanitizer as _sanitizer,
+        AuditEvent as _AuditEvent,
+    )
+    _SECURITY_OK = True
+except ImportError:
+    _SECURITY_OK = False
+
 # ─────────────────────────────────────────────────────────────────────────────
 
 import asyncio
