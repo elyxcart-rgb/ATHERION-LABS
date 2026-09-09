@@ -41,6 +41,19 @@ PORT        = 8000
 MAX_UPLOAD_MB = 500
 
 
+def _find_free_port(start: int = 8000) -> int:
+    """Find an available port starting from *start*."""
+    import socket as _sock
+    for port in range(start, start + 100):
+        try:
+            with _sock(_sock.AF_INET, _sock.SOCK_STREAM) as s:
+                s.bind(("127.0.0.1", port))
+                return port
+        except OSError:
+            continue
+    return start  # fallback
+
+
 def _make_uploads_dir() -> Path:
     """Return (and create) the cross-platform uploads folder."""
     for candidate in [
@@ -858,6 +871,9 @@ class DashboardServer:
             print("[Dashboard] fastapi/uvicorn not installed — dashboard disabled.")
             print("[Dashboard] Run:  pip install fastapi 'uvicorn[standard]' cryptography")
             return
+
+        global PORT
+        PORT = _find_free_port(PORT)
 
         # Firewall setup runs in a thread — uvicorn starts immediately,
         # no waiting for UAC dialogs or subprocess timeouts.
