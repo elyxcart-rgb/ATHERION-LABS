@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from pathlib import Path
 from typing import Any
 
 from .models import CodingTask, CodingResult, TaskState
@@ -13,6 +14,28 @@ from .verification import Verifier
 from .intent_detector import IntentDetector
 
 logger = logging.getLogger("sonic.coding")
+
+# ── Smart workspace extraction ──────────────────────────────────────────
+_DESKTOP = str(Path.home() / "Desktop")
+_DOCUMENTS = str(Path.home() / "Documents")
+_DOWNLOADS = str(Path.home() / "Downloads")
+
+_LOCATION_MAP = {
+    "desktop": _DESKTOP,
+    "save to desktop": _DESKTOP,
+    "desktop per": _DESKTOP,
+    "documents": _DOCUMENTS,
+    "downloads": _DOWNLOADS,
+}
+
+
+def extract_target_dir(request: str) -> str | None:
+    """Extract explicit save location from natural language request."""
+    low = request.lower()
+    for keyword, path in _LOCATION_MAP.items():
+        if keyword in low:
+            return path
+    return None
 
 
 class OpenCodeAdapter:
@@ -40,6 +63,13 @@ class OpenCodeAdapter:
             session_id=session_id,
         )
         timeout = timeout or self._default_timeout
+
+        # Smart: extract target dir from request if no workspace specified
+        if not workspace:
+            extracted = extract_target_dir(request)
+            if extracted:
+                workspace = extracted
+                logger.info("[SONIC] extracted workspace from request: %s", workspace)
 
         project_root = WorkspaceManager.resolve_project_root(workspace)
         if not WorkspaceManager.validate_workspace(project_root):
@@ -140,7 +170,11 @@ class OpenCodeAdapter:
         return result
 
     def _build_prompt(self, task: CodingTask) -> str:
-        parts = [task.request]
+        parts = [f"TASK: {task.request}"]
+        # Explicit output directory — files MUST be saved here
+        parts.append(f"\nOUTPUT DIRECTORY: {task.project_root}")
+        parts.append("All files must be saved in the OUTPUT DIRECTORY above.")
+        parts.append("Do NOT save files in any other location.")
         if task.context_files:
             parts.append(f"\nRelevant files in project: {', '.join(task.context_files[:10])}")
         parts.append(f"\nProject root: {task.project_root}")

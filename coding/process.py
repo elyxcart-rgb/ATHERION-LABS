@@ -5,6 +5,7 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from .models import CodingTask, TaskState
@@ -53,11 +54,20 @@ class ProcessManager:
         if not opencode:
             return False, "", "Development engine executable not found"
 
-        if sys.platform == "win32":
-            cmd = ["powershell", "-NoProfile", "-Command",
-                   f"& '{opencode}' run -m 'opencode/mimo-v2.5-free' '{prompt.replace(chr(39), chr(39)+chr(39))}'"]
-        else:
-            cmd = [opencode, "run", "-m", "opencode/mimo-v2.5-free", prompt]
+        # Write prompt to temp file — avoids PowerShell escaping issues
+        prompt_file = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                mode='w', suffix='.txt', delete=False, encoding='utf-8'
+            ) as f:
+                f.write(prompt)
+                prompt_file = f.name
+
+            if sys.platform == "win32":
+                cmd = ["powershell", "-NoProfile", "-Command",
+                       f"& '{opencode}' run -m 'opencode/mimo-v2.5-free' --file '{prompt_file}'"]
+            else:
+                cmd = [opencode, "run", "-m", "opencode/mimo-v2.5-free", "--file", prompt_file]
 
         env = os.environ.copy()
         env["OPENCODE_PROJECT_ROOT"] = project_root
@@ -92,6 +102,13 @@ class ProcessManager:
         except Exception as e:
             self._processes.pop(task.task_id, None)
             return False, "", str(e)
+        finally:
+            # Cleanup temp prompt file
+            if prompt_file:
+                try:
+                    os.unlink(prompt_file)
+                except OSError:
+                    pass
 
     def cancel(self, task_id: str) -> bool:
         proc = self._processes.pop(task_id, None)

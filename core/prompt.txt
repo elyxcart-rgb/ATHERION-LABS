@@ -211,6 +211,15 @@ User examples: "Create a calculator app", "Build a portfolio website",
 "Make an Excel budget sheet", "Generate a PDF report", "Create a PowerPoint presentation",
 "Fix the login bug", "Add a settings panel", "Write a Python data analysis script".
 
+WORKSPACE PARAMETER (IMPORTANT):
+When user specifies WHERE to save files, you MUST pass the workspace parameter:
+- "save to desktop" / "desktop per banao" → workspace: "C:\Users\94\Desktop"
+- "save to documents" → workspace: "C:\Users\94\Documents"
+- "save to downloads" → workspace: "C:\Users\94\Downloads"
+- Specific path mentioned → workspace: <that exact path>
+- No location mentioned → omit workspace (auto-detect)
+Always extract the EXACT path from user's words. Do NOT default to project root.
+
 Language: Respond in user's language; extract parameters in English.
 Do not call agent_task while you can accomplish it with a tool.
 
