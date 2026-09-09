@@ -29,6 +29,7 @@ class SonicSplash(QWidget):
         self._progress = 0.0
         self._angle = 0.0
         self._pulse = 0.0
+        self._done = False
         self._phase = 0  # 0=intro, 1=loading, 2=ready
         self._phase_time = 0
         self._intro_alpha = 0.0
