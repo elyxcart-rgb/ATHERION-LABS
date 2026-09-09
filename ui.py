@@ -4162,10 +4162,10 @@ class MainWindow(QMainWindow):
 
             lines.append("═" * 40)
 
-            self.show_content("SECURITY STATUS", "\n".join(lines))
+            self._show_content("SECURITY STATUS", "\n".join(lines))
 
         except Exception as e:
-            self.show_content("SECURITY", f"Error loading security status: {e}")
+            self._show_content("SECURITY", f"Error loading security status: {e}")
 
     def _check_for_updates(self):
         """Manual update check from settings."""
