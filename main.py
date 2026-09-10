@@ -1257,12 +1257,16 @@ class SonicLive:
         self._last_user_speech = time.monotonic()  # updated on every user utterance
         self._session_log: list[str] = []          # conversation turns for end-of-session summary
 
-        # Local conversation context — recent turns kept for reconnect continuity.
-        # If the server drops the session-resumption handle, this buffer lets us
-        # send a "here's what we were talking about" prompt so the assistant
-        # doesn't start completely blank after a reconnect.
-        self._conversation_context: list[dict] = []  # [{"role": "user"|"assistant", "text": "..."}]
-        self._max_context_turns = 20  # keep last N turns (10 user + 10 assistant)
+        # ── Smart Conversation Context ──────────────────────────────────────
+        # Local conversation buffer for reconnect continuity. Stores rich turn
+        # data (role, text, timestamp, tools used) so that when the server
+        # drops the session handle, we can inject a detailed summary into the
+        # system prompt. The assistant sees exactly what was discussed and
+        # continues naturally.
+        self._conversation_context: list[dict] = []
+        # Each entry: {"role": "user"|"assistant", "text": "...", "ts": float, "tools": [...]}
+        self._max_context_turns = 30  # keep last 30 turns
+        self._context_injected = False  # True if context was injected on this session
 
         self._enhanced_live = True  # affective dialog + proactive audio; auto-disabled if the server rejects them
         _core_names = {t["name"] for t in TOOL_DECLARATIONS}
@@ -1494,18 +1498,15 @@ class SonicLive:
 
         parts.append(sys_prompt)
 
+        # ── Reconnect Context Injection ────────────────────────────────────
         # When reconnecting without a server-side handle, inject recent
         # conversation context so the assistant can pick up where it left off.
-        # This is the local fallback: if the server lost the handle, we still
-        # remember what was said.
+        # Uses smart selection: recent turns + turns with tools + summary.
         if self._resume_handle is None and self._conversation_context:
-            ctx_lines = ["\n[SESSION CONTEXT — recent conversation before reconnect:]"]
-            for turn in self._conversation_context[-self._max_context_turns:]:
-                role = "User" if turn["role"] == "user" else self._asst_name
-                ctx_lines.append(f"{role}: {turn['text']}")
-            ctx_lines.append("[END SESSION CONTEXT — continue the conversation naturally.]")
-            parts.append("\n".join(ctx_lines))
-            print(f"[SONIC] 🔗 Injected {len(self._conversation_context)} turns of local context for reconnect")
+            ctx = self._build_reconnect_context()
+            parts.append(ctx)
+            self._context_injected = True
+            print(f"[SONIC] 🔗 Reconnect context injected ({len(self._conversation_context)} turns buffered)")
 
         cfg = dict(
             response_modalities=["AUDIO"],
@@ -1540,12 +1541,69 @@ class SonicLive:
             cfg["proactivity"] = types.ProactivityConfig(proactive_audio=True)
         return types.LiveConnectConfig(**cfg)
 
+    def _build_reconnect_context(self) -> str:
+        """Build a rich context block for reconnect continuity.
+
+        Smart selection: always include last 10 turns, plus any turns that
+        used tools (they contain important state), plus a summary of what
+        was discussed. The goal is to give the assistant enough context to
+        continue naturally without exceeding token limits.
+        """
+        lines = ["\n[SESSION CONTEXT — conversation before reconnect]"]
+        lines.append("The session was interrupted. Here is what was discussed:")
+        lines.append("")
+
+        turns = self._conversation_context
+        if not turns:
+            return ""
+
+        # Always include last 10 turns (5 user + 5 assistant pairs)
+        recent = turns[-10:]
+        # Also include any turns with tool calls (important state)
+        tool_turns = [t for t in turns[:-10] if t.get("tools")]
+
+        # Combine: tool turns first (context), then recent (continuity)
+        selected = tool_turns[-15:] + recent  # cap at 25 turns total
+        # Deduplicate while preserving order
+        seen = set()
+        unique = []
+        for t in selected:
+            key = (t["role"], t["text"][:50])
+            if key not in seen:
+                seen.add(key)
+                unique.append(t)
+
+        for turn in unique:
+            role = "User" if turn["role"] == "user" else self._asst_name
+            text = turn["text"]
+            # Truncate very long messages
+            if len(text) > 300:
+                text = text[:297] + "..."
+            tools_info = ""
+            if turn.get("tools"):
+                tools_info = f" [used: {', '.join(turn['tools'][:3])}]"
+            lines.append(f"{role}: {text}{tools_info}")
+
+        # Add summary of what was happening
+        user_turns = [t for t in turns if t["role"] == "user"]
+        if user_turns:
+            last_topic = user_turns[-1]["text"][:100]
+            lines.append(f"\n[Last topic: {last_topic}]")
+
+        lines.append("[END CONTEXT — continue naturally from where the conversation left off]")
+        return "\n".join(lines)
+
     async def _execute_tool(self, fc) -> types.FunctionResponse:
         name = fc.name
         args = dict(fc.args or {})
 
         print(f"[SONIC] 🔧 {name}  {args}")
         self.ui.set_state("THINKING")
+
+        # Track tools used in current turn for context
+        if not hasattr(self, '_last_tool_calls'):
+            self._last_tool_calls = []
+        self._last_tool_calls.append(name)
 
         if name == "save_memory":
             category = args.get("category", "notes")
@@ -2211,8 +2269,13 @@ class SonicLive:
                             if full_in:
                                 self.ui.write_log(f"You: {full_in}")
                                 self._session_log.append(f"User: {full_in}")
-                                # Track in conversation context for reconnect continuity
-                                self._conversation_context.append({"role": "user", "text": full_in})
+                                # Track in conversation context with timestamp
+                                self._conversation_context.append({
+                                    "role": "user", "text": full_in,
+                                    "ts": time.time(), "tools": [],
+                                })
+                                # Reset tool tracking for this turn
+                                self._last_tool_calls = []
                                 if self._dashboard:
                                     asyncio.create_task(self._dashboard.broadcast({
                                         "type": "log", "speaker": "user",
@@ -2225,11 +2288,18 @@ class SonicLive:
                             if full_out:
                                 self.ui.write_log(f"{self._asst_name}: {full_out}")
                                 self._session_log.append(f"{self._asst_name}: {full_out}")
-                                # Track in conversation context for reconnect continuity
-                                self._conversation_context.append({"role": "assistant", "text": full_out})
+                                # Track tools used in this turn
+                                _tools_used = []
+                                if hasattr(self, '_last_tool_calls'):
+                                    _tools_used = list(self._last_tool_calls)
+                                # Track in conversation context with timestamp
+                                self._conversation_context.append({
+                                    "role": "assistant", "text": full_out,
+                                    "ts": time.time(), "tools": _tools_used,
+                                })
                                 # Keep only recent turns (bounded memory)
-                                if len(self._conversation_context) > self._max_context_turns * 2:
-                                    self._conversation_context = self._conversation_context[-self._max_context_turns * 2:]
+                                if len(self._conversation_context) > self._max_context_turns:
+                                    self._conversation_context = self._conversation_context[-self._max_context_turns:]
                                 if self._dashboard:
                                     asyncio.create_task(self._dashboard.broadcast({
                                         "type": "log", "speaker": "sonic",
@@ -2539,6 +2609,9 @@ class SonicLive:
             return
         self._session_log = []    # reset immediately so the next session starts clean
 
+        # Save conversation context for crash recovery
+        self._save_conversation_context()
+
         memory = load_memory()
         lang_entry = memory.get("identity", {}).get("language", {})
         lang = (lang_entry.get("value", "") if isinstance(lang_entry, dict) else str(lang_entry)).strip()
@@ -2571,6 +2644,38 @@ class SonicLive:
                 print(f"[Memory] 🔄 Consolidation: {stats}")
         except Exception as e:
             print(f"[Memory] ⚠️ Consolidation error: {e}")
+
+    # ── Conversation context persistence ─────────────────────────────────────
+
+    def _save_conversation_context(self) -> None:
+        """Save conversation context to disk for crash recovery."""
+        if not self._conversation_context:
+            return
+        try:
+            import json
+            from pathlib import Path
+            ctx_path = Path.home() / ".sonic" / "conversation_context.json"
+            ctx_path.parent.mkdir(parents=True, exist_ok=True)
+            # Save last 30 turns
+            data = self._conversation_context[-30:]
+            ctx_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            print(f"[Memory] 💾 Saved {len(data)} turns of conversation context")
+        except Exception as e:
+            print(f"[Memory] ⚠️ Failed to save context: {e}")
+
+    def _load_conversation_context(self) -> None:
+        """Load conversation context from disk (crash recovery)."""
+        try:
+            import json
+            from pathlib import Path
+            ctx_path = Path.home() / ".sonic" / "conversation_context.json"
+            if ctx_path.exists():
+                data = json.loads(ctx_path.read_text(encoding="utf-8"))
+                if isinstance(data, list) and data:
+                    self._conversation_context = data[-30:]
+                    print(f"[Memory] 🔗 Loaded {len(self._conversation_context)} turns from previous session")
+        except Exception as e:
+            print(f"[Memory] ⚠️ Failed to load context: {e}")
 
     # ── System monitor ──────────────────────────────────────────────────────────
 
@@ -2734,6 +2839,9 @@ class SonicLive:
             max_workers=12, thread_name_prefix="sonic-tool"
         )
 
+        # Load conversation context from previous session (crash recovery)
+        self._load_conversation_context()
+
         # ── Wire the shared core services to the interface ───────────────────
         # The confirmation gate is useless without a way to ask, and a memory
         # trim is invisible without a way to say so. Both are bound once here
@@ -2804,6 +2912,11 @@ class SonicLive:
                         # and "it reconnected and still knows what we were doing"
                         # is the whole point, and it is invisible otherwise.
                         self.ui.write_log("SYS: Reconnected — conversation restored.")
+                    elif self._context_injected:
+                        # Local context was injected — assistant has memory
+                        n = len(self._conversation_context)
+                        self.ui.write_log(f"SYS: Reconnected — {n} turns of context restored from memory.")
+                        self._context_injected = False
                     self.ui.set_state("LISTENING")
                     self.ui.write_log("SYS: SONIC online.")
 
