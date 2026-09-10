@@ -1257,6 +1257,13 @@ class SonicLive:
         self._last_user_speech = time.monotonic()  # updated on every user utterance
         self._session_log: list[str] = []          # conversation turns for end-of-session summary
 
+        # Local conversation context — recent turns kept for reconnect continuity.
+        # If the server drops the session-resumption handle, this buffer lets us
+        # send a "here's what we were talking about" prompt so the assistant
+        # doesn't start completely blank after a reconnect.
+        self._conversation_context: list[dict] = []  # [{"role": "user"|"assistant", "text": "..."}]
+        self._max_context_turns = 20  # keep last N turns (10 user + 10 assistant)
+
         self._enhanced_live = True  # affective dialog + proactive audio; auto-disabled if the server rejects them
         _core_names = {t["name"] for t in TOOL_DECLARATIONS}
         self._plugin_registry = discover_plugins(
@@ -1486,6 +1493,19 @@ class SonicLive:
             pass
 
         parts.append(sys_prompt)
+
+        # When reconnecting without a server-side handle, inject recent
+        # conversation context so the assistant can pick up where it left off.
+        # This is the local fallback: if the server lost the handle, we still
+        # remember what was said.
+        if self._resume_handle is None and self._conversation_context:
+            ctx_lines = ["\n[SESSION CONTEXT — recent conversation before reconnect:]"]
+            for turn in self._conversation_context[-self._max_context_turns:]:
+                role = "User" if turn["role"] == "user" else self._asst_name
+                ctx_lines.append(f"{role}: {turn['text']}")
+            ctx_lines.append("[END SESSION CONTEXT — continue the conversation naturally.]")
+            parts.append("\n".join(ctx_lines))
+            print(f"[SONIC] 🔗 Injected {len(self._conversation_context)} turns of local context for reconnect")
 
         cfg = dict(
             response_modalities=["AUDIO"],
@@ -2191,6 +2211,8 @@ class SonicLive:
                             if full_in:
                                 self.ui.write_log(f"You: {full_in}")
                                 self._session_log.append(f"User: {full_in}")
+                                # Track in conversation context for reconnect continuity
+                                self._conversation_context.append({"role": "user", "text": full_in})
                                 if self._dashboard:
                                     asyncio.create_task(self._dashboard.broadcast({
                                         "type": "log", "speaker": "user",
@@ -2203,6 +2225,11 @@ class SonicLive:
                             if full_out:
                                 self.ui.write_log(f"{self._asst_name}: {full_out}")
                                 self._session_log.append(f"{self._asst_name}: {full_out}")
+                                # Track in conversation context for reconnect continuity
+                                self._conversation_context.append({"role": "assistant", "text": full_out})
+                                # Keep only recent turns (bounded memory)
+                                if len(self._conversation_context) > self._max_context_turns * 2:
+                                    self._conversation_context = self._conversation_context[-self._max_context_turns * 2:]
                                 if self._dashboard:
                                     asyncio.create_task(self._dashboard.broadcast({
                                         "type": "log", "speaker": "sonic",
@@ -2833,9 +2860,12 @@ class SonicLive:
                     or "INVALID_ARGUMENT" in str(e)
                     or "NOT_FOUND" in str(e)
                 ):
-                    print("[SONIC] 🔗 Resumption handle rejected — starting a fresh session")
-                    self.ui.write_log("SYS: Could not restore the conversation — starting fresh.")
+                    print("[SONIC] 🔗 Resumption handle rejected — using local context fallback")
+                    self.ui.write_log("SYS: Session handle expired — using local conversation memory.")
                     self._resume_handle = None
+                    # NOTE: _conversation_context is NOT cleared — it will be
+                    # injected into the system prompt on the next connect so
+                    # the assistant can continue from where it left off.
                     self._conn_backoff = 0
                     continue
 
@@ -2888,6 +2918,14 @@ class SonicLive:
                 # Only save if there was a real conversation (≥3 turns)
                 if len(self._session_log) >= 3:
                     asyncio.create_task(self._save_session_summary())
+
+            # Log session resumption status for debugging
+            if self._resume_handle:
+                print(f"[SONIC] 🔗 Session handle preserved for reconnect")
+            elif self._conversation_context:
+                print(f"[SONIC] 🔗 No handle — {len(self._conversation_context)} turns of local context will be injected on reconnect")
+            else:
+                print("[SONIC] 🔗 No handle, no context — fresh start")
 
             self.set_speaking(False)
             self.ui.set_state("SLEEPING")
