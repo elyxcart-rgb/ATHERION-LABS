@@ -1,11 +1,11 @@
-"""SONIC AI — Premium Cinematic Splash Screen.
+"""SONIC AI — Ultra Premium Splash Screen.
 
-Ultra-premium loading animation with multi-layer effects:
-- Rotating energy rings with different speeds
-- Particle systems (dust, sparks, energy trails)
-- Holographic grid background
-- Dynamic text reveal with glitch effect
-- Light rays and lens flare
+Unique professional startup animation:
+- Neural network visualization (AI brain)
+- Hexagonal grid background
+- DNA-style double helix
+- Connected particle constellation
+- Typography assembly animation
 - Premium entry/exit transitions
 """
 from __future__ import annotations
@@ -21,43 +21,43 @@ from PyQt6.QtWidgets import QWidget
 
 
 class SonicSplash(QWidget):
-    """Premium cinematic splash screen with multi-layer effects."""
+    """Ultra premium splash with neural network + hex grid + DNA helix."""
 
     def __init__(self, on_done=None) -> None:
         super().__init__()
         self._on_done = on_done
         self._progress = 0.0
-        self._angle = 0.0
-        self._pulse = 0.0
+        self._tick_count = 0
         self._done = False
-        self._phase = 0  # 0=intro, 1=loading, 2=ready
+        self._phase = 0  # 0=assemble, 1=loading, 2=ready
         self._phase_time = 0
         self._intro_alpha = 0.0
         self._ready_alpha = 0.0
-        self._glitch_offset = 0
-        self._scan_line = 0
-        self._grid_offset = 0
-        self._rays_angle = 0
+        self._pulse = 0.0
 
-        # Particle systems
-        self._dust_particles = []
-        self._spark_particles = []
-        self._energy_trails = []
+        # Neural network nodes
+        self._nn_nodes = []
+        self._nn_connections = []
+        self._init_neural_network()
 
-        # Stars
-        self._stars = []
-        for _ in range(80):
-            self._stars.append({
-                "x": random.randint(0, 600),
-                "y": random.randint(0, 800),
-                "size": random.uniform(0.5, 2.0),
-                "twinkle": random.uniform(0, math.pi * 2),
-            })
+        # Hex grid
+        self._hex_offset = 0.0
+
+        # DNA helix
+        self._dna_angle = 0.0
+
+        # Constellation particles
+        self._constellation = []
+        self._init_constellation()
+
+        # Typography animation
+        self._letters = list("SONIC")
+        self._letter_progress = [0.0] * 5
 
         self.setWindowTitle("SONIC AI")
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setFixedSize(520, 700)
+        self.setFixedSize(520, 720)
 
         # Animation timer (~60fps)
         self._timer = QTimer(self)
@@ -68,12 +68,53 @@ class SonicSplash(QWidget):
         self._finish_timer = QTimer(self)
         self._finish_timer.setSingleShot(True)
         self._finish_timer.timeout.connect(self._finish)
-        self._finish_timer.start(5000)
+        self._finish_timer.start(5500)
 
         # Progress animation
         self._progress_timer = QTimer(self)
         self._progress_timer.timeout.connect(self._advance_progress)
         self._progress_timer.start(25)
+
+    def _init_neural_network(self) -> None:
+        """Create AI brain-like neural network."""
+        cx, cy = 260, 280
+        # Create nodes in a brain-like cluster
+        for i in range(35):
+            angle = random.uniform(0, math.pi * 2)
+            radius = random.uniform(20, 130)
+            x = cx + math.cos(angle) * radius
+            y = cy + math.sin(angle) * radius * 0.7  # Slightly oval
+            self._nn_nodes.append({
+                "x": x, "y": y,
+                "vx": 0, "vy": 0,
+                "pulse": random.uniform(0, math.pi * 2),
+                "size": random.uniform(2, 5),
+                "layer": random.randint(0, 2),
+            })
+
+        # Create connections (like synapses)
+        for i in range(len(self._nn_nodes)):
+            for j in range(i + 1, len(self._nn_nodes)):
+                n1, n2 = self._nn_nodes[i], self._nn_nodes[j]
+                dist = math.hypot(n1["x"] - n2["x"], n1["y"] - n2["y"])
+                if dist < 100 and random.random() < 0.4:
+                    self._nn_connections.append({
+                        "from": i, "to": j,
+                        "signal_progress": random.uniform(0, 1),
+                        "active": random.random() < 0.3,
+                    })
+
+    def _init_constellation(self) -> None:
+        """Create connected star particles."""
+        for _ in range(50):
+            self._constellation.append({
+                "x": random.uniform(20, 500),
+                "y": random.uniform(20, 700),
+                "vx": random.uniform(-0.2, 0.2),
+                "vy": random.uniform(-0.2, 0.2),
+                "twinkle": random.uniform(0, math.pi * 2),
+                "size": random.uniform(0.5, 2),
+            })
 
     def _advance_progress(self) -> None:
         if self._progress < 100:
@@ -81,95 +122,54 @@ class SonicSplash(QWidget):
             self._progress += max(0.2, remaining * 0.035)
 
     def _tick(self) -> None:
-        self._angle += 1.8
-        self._pulse = (math.sin(self._angle * 0.04) + 1) / 2
+        self._tick_count += 1
+        self._pulse = (math.sin(self._tick_count * 0.05) + 1) / 2
         self._phase_time += 1
-        self._grid_offset += 0.3
-        self._rays_angle += 0.5
-        self._scan_line = (self._scan_line + 2) % self.height()
+        self._hex_offset += 0.2
+        self._dna_angle += 2.5
 
         # Phase transitions
-        if self._phase == 0 and self._phase_time > 60:
+        if self._phase == 0 and self._phase_time > 80:
             self._phase = 1
             self._phase_time = 0
         elif self._phase == 1 and self._progress >= 100:
             self._phase = 2
             self._phase_time = 0
 
-        # Intro alpha
+        # Alpha animations
         if self._phase == 0:
-            self._intro_alpha = min(1.0, self._phase_time / 40)
+            self._intro_alpha = min(1.0, self._phase_time / 60)
         if self._phase == 2:
             self._ready_alpha = min(1.0, self._phase_time / 30)
 
-        # Glitch effect (random during loading)
-        if self._phase == 1 and random.random() < 0.03:
-            self._glitch_offset = random.randint(-3, 3)
-        else:
-            self._glitch_offset = 0
+        # Letter assembly animation
+        for i in range(5):
+            delay = i * 12
+            if self._phase_time > delay:
+                self._letter_progress[i] = min(1.0, self._letter_progress[i] + 0.05)
 
-        # Spawn dust particles
-        if len(self._dust_particles) < 40:
-            self._dust_particles.append({
-                "x": random.uniform(0, self.width()),
-                "y": self.height() + 10,
-                "vx": random.uniform(-0.3, 0.3),
-                "vy": random.uniform(-1.5, -0.5),
-                "life": 1.0,
-                "size": random.uniform(1, 3),
-            })
+        # Neural network pulse
+        for node in self._nn_nodes:
+            node["pulse"] += 0.08
 
-        # Spawn spark particles from center
-        if len(self._spark_particles) < 15 and self._progress < 95:
-            cx, cy = self.width() // 2, self.height() // 2 - 60
-            angle = random.uniform(0, math.pi * 2)
-            speed = random.uniform(1, 3)
-            self._spark_particles.append({
-                "x": cx,
-                "y": cy,
-                "vx": math.cos(angle) * speed,
-                "vy": math.sin(angle) * speed,
-                "life": 1.0,
-                "size": random.uniform(1, 2.5),
-            })
+        # Signal propagation through connections
+        for conn in self._nn_connections:
+            if conn["active"]:
+                conn["signal_progress"] += 0.02
+                if conn["signal_progress"] > 1.0:
+                    conn["signal_progress"] = 0.0
+                    conn["active"] = random.random() < 0.3
 
-        # Spawn energy trails
-        if len(self._energy_trails) < 8 and self._phase == 1:
-            cx, cy = self.width() // 2, self.height() // 2 - 60
-            self._energy_trails.append({
-                "x": cx + random.uniform(-60, 60),
-                "y": cy + random.uniform(-60, 60),
-                "target_x": cx,
-                "target_y": cy,
-                "life": 1.0,
-                "progress": 0,
-            })
-
-        # Update particles
-        for p in self._dust_particles:
-            p["x"] += p["vx"]
-            p["y"] += p["vy"]
-            p["life"] -= 0.008
-        self._dust_particles = [p for p in self._dust_particles if p["life"] > 0]
-
-        for p in self._spark_particles:
-            p["x"] += p["vx"]
-            p["y"] += p["vy"]
-            p["vx"] *= 0.98
-            p["vy"] *= 0.98
-            p["life"] -= 0.025
-        self._spark_particles = [p for p in self._spark_particles if p["life"] > 0]
-
-        for t in self._energy_trails:
-            t["progress"] += 0.03
-            t["life"] -= 0.015
-            t["x"] += (t["target_x"] - t["x"]) * 0.1
-            t["y"] += (t["target_y"] - t["y"]) * 0.1
-        self._energy_trails = [t for t in self._energy_trails if t["life"] > 0]
-
-        # Update stars twinkle
-        for s in self._stars:
-            s["twinkle"] += 0.05
+        # Constellation drift
+        for star in self._constellation:
+            star["x"] += star["vx"]
+            star["y"] += star["vy"]
+            star["twinkle"] += 0.03
+            # Wrap around
+            if star["x"] < 0: star["x"] = 520
+            if star["x"] > 520: star["x"] = 0
+            if star["y"] < 0: star["y"] = 720
+            if star["y"] > 720: star["y"] = 0
 
         self.update()
 
@@ -178,354 +178,373 @@ class SonicSplash(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         w, h = self.width(), self.height()
-        cx, cy = w // 2, h // 2 - 60
+        cx, cy = w // 2, 280
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 1: Deep space background
+        # LAYER 1: Deep space gradient
         # ═══════════════════════════════════════════════════════════════════
         bg = QLinearGradient(0, 0, 0, h)
-        bg.setColorAt(0.0, QColor(4, 6, 14))
-        bg.setColorAt(0.3, QColor(8, 10, 20))
-        bg.setColorAt(0.7, QColor(6, 8, 16))
-        bg.setColorAt(1.0, QColor(4, 6, 14))
+        bg.setColorAt(0.0, QColor(2, 4, 12))
+        bg.setColorAt(0.3, QColor(6, 8, 18))
+        bg.setColorAt(0.7, QColor(4, 6, 14))
+        bg.setColorAt(1.0, QColor(2, 4, 10))
         painter.setBrush(QBrush(bg))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(0, 0, w, h, 24, 24)
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 2: Star field
+        # LAYER 2: Constellation background
         # ═══════════════════════════════════════════════════════════════════
-        for s in self._stars:
-            twinkle = (math.sin(s["twinkle"]) + 1) / 2
-            alpha = int(40 + twinkle * 60)
+        for star in self._constellation:
+            twinkle = (math.sin(star["twinkle"]) + 1) / 2
+            alpha = int(30 + twinkle * 50)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(180, 200, 220, alpha)))
-            painter.drawEllipse(QPointF(s["x"], s["y"]), s["size"], s["size"])
+            painter.setBrush(QBrush(QColor(150, 180, 220, alpha)))
+            painter.drawEllipse(QPointF(star["x"], star["y"]),
+                              star["size"], star["size"])
+
+        # Connect nearby constellation stars
+        const_pen = QPen(QColor(80, 120, 180, 15))
+        const_pen.setWidth(1)
+        painter.setPen(const_pen)
+        for i in range(len(self._constellation)):
+            for j in range(i + 1, min(i + 5, len(self._constellation))):
+                s1, s2 = self._constellation[i], self._constellation[j]
+                dist = math.hypot(s1["x"] - s2["x"], s1["y"] - s2["y"])
+                if dist < 80:
+                    alpha = int(15 * (1 - dist / 80))
+                    const_pen.setColor(QColor(80, 120, 180, alpha))
+                    painter.setPen(const_pen)
+                    painter.drawLine(QPointF(s1["x"], s1["y"]),
+                                   QPointF(s2["x"], s2["y"]))
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 3: Holographic grid
+        # LAYER 3: Hexagonal grid
         # ═══════════════════════════════════════════════════════════════════
-        grid_alpha = int(15 + self._pulse * 10)
-        grid_pen = QPen(QColor(0, 180, 255, grid_alpha))
-        grid_pen.setWidth(1)
-
-        # Horizontal grid lines
-        for i in range(0, h, 40):
-            y = (i + self._grid_offset) % h
-            painter.setPen(grid_pen)
-            painter.drawLine(0, int(y), w, int(y))
-
-        # Vertical grid lines (perspective effect)
-        for i in range(0, w, 40):
-            x = (i + self._grid_offset * 0.5) % w
-            painter.setPen(grid_pen)
-            painter.drawLine(int(x), 0, int(x), h)
-
-        # ═══════════════════════════════════════════════════════════════════
-        # LAYER 4: Light rays / lens flare
-        # ═══════════════════════════════════════════════════════════════════
-        ray_alpha = int(20 + self._pulse * 15)
-        for i in range(6):
-            angle = self._rays_angle + i * 60
-            ray_len = 180 + self._pulse * 30
-            ray_x = cx + math.cos(math.radians(angle)) * ray_len
-            ray_y = cy + math.sin(math.radians(angle)) * ray_len
-
-            ray_grad = QLinearGradient(cx, cy, ray_x, ray_y)
-            ray_grad.setColorAt(0.0, QColor(0, 200, 255, ray_alpha))
-            ray_grad.setColorAt(0.5, QColor(0, 150, 255, ray_alpha // 3))
-            ray_grad.setColorAt(1.0, QColor(0, 0, 0, 0))
-
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(ray_grad))
-
-            path = QPainterPath()
-            path.moveTo(cx, cy)
-            dx = math.cos(math.radians(angle - 5)) * ray_len
-            dy = math.sin(math.radians(angle - 5)) * ray_len
-            path.lineTo(cx + dx, cy + dy)
-            dx2 = math.cos(math.radians(angle + 5)) * ray_len
-            dy2 = math.sin(math.radians(angle + 5)) * ray_len
-            path.lineTo(cx + dx2, cy + dy2)
-            path.closeSubpath()
-            painter.drawPath(path)
-
-        # ═══════════════════════════════════════════════════════════════════
-        # LAYER 5: Outer ambient glow
-        # ═══════════════════════════════════════════════════════════════════
-        glow_r = 140 + self._pulse * 25
-        glow = QRadialGradient(cx, cy, glow_r)
-        glow_alpha = int(35 + self._pulse * 25)
-        glow.setColorAt(0.0, QColor(0, 200, 255, glow_alpha))
-        glow.setColorAt(0.4, QColor(0, 120, 200, glow_alpha // 4))
-        glow.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(glow))
-        painter.drawEllipse(QPointF(cx, cy), glow_r, glow_r)
-
-        # ═══════════════════════════════════════════════════════════════════
-        # LAYER 6: Rotating energy rings (3 layers)
-        # ═══════════════════════════════════════════════════════════════════
-        # Outer ring (slow)
-        ring1_pen = QPen(QColor(0, 200, 255, int(60 + self._pulse * 40)))
-        ring1_pen.setWidth(2)
-        painter.setPen(ring1_pen)
+        hex_alpha = int(12 + self._pulse * 8)
+        hex_pen = QPen(QColor(0, 160, 240, hex_alpha))
+        hex_pen.setWidth(1)
+        painter.setPen(hex_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        r1 = 70
-        rect1 = QRectF(cx - r1, cy - r1, r1 * 2, r1 * 2)
-        painter.drawArc(rect1, int(self._angle * 8), 60 * 16)
-        painter.drawArc(rect1, int(self._angle * 8 + 180 * 16), 60 * 16)
 
-        # Middle ring (medium)
-        ring2_pen = QPen(QColor(0, 220, 255, int(80 + self._pulse * 50)))
-        ring2_pen.setWidth(2)
-        ring2_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(ring2_pen)
-        r2 = 55
-        rect2 = QRectF(cx - r2, cy - r2, r2 * 2, r2 * 2)
-        painter.drawArc(rect2, int(-self._angle * 12), 45 * 16)
-
-        # Inner ring (fast)
-        ring3_pen = QPen(QColor(0, 240, 255, int(100 + self._pulse * 60)))
-        ring3_pen.setWidth(3)
-        ring3_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(ring3_pen)
-        r3 = 42
-        rect3 = QRectF(cx - r3, cy - r3, r3 * 2, r3 * 2)
-        painter.drawArc(rect3, int(self._angle * 18), 30 * 16)
+        hex_size = 30
+        hex_h = hex_size * math.sqrt(3)
+        for row in range(-1, int(h / hex_h) + 2):
+            for col in range(-1, int(w / (hex_size * 1.5)) + 2):
+                x = col * hex_size * 1.5
+                y = row * hex_h + (col % 2) * hex_h / 2
+                y += self._hex_offset % hex_h
+                if 0 < x < w and 0 < y < h:
+                    self._draw_hexagon(painter, x, y, hex_size * 0.45)
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 7: Orbital dots
+        # LAYER 4: DNA Double Helix
         # ═══════════════════════════════════════════════════════════════════
-        for i in range(8):
-            dot_angle = self._angle * 2 + i * 45
-            dot_r = 65
-            dx = cx + math.cos(math.radians(dot_angle)) * dot_r
-            dy = cy + math.sin(math.radians(dot_angle)) * dot_r
-            dot_alpha = int(120 + self._pulse * 80)
+        helix_alpha = int(60 + self._pulse * 40)
+        helix_width = 60
+        helix_height = 300
+        helix_top = cy - 100
+
+        # Draw helix strands
+        for strand in range(2):
+            strand_offset = math.pi * strand
+            points = []
+            for i in range(50):
+                t = i / 49
+                y = helix_top + t * helix_height
+                x = cx + math.sin(self._dna_angle * 0.02 + t * math.pi * 4 + strand_offset) * helix_width
+                points.append(QPointF(x, y))
+
+            # Draw strand line
+            strand_pen = QPen(QColor(0, 200, 255, helix_alpha))
+            strand_pen.setWidth(2)
+            strand_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            painter.setPen(strand_pen)
+            for i in range(len(points) - 1):
+                painter.drawLine(points[i], points[i + 1])
+
+        # Draw cross-connections (rungs)
+        rung_pen = QPen(QColor(0, 180, 255, helix_alpha // 2))
+        rung_pen.setWidth(1)
+        painter.setPen(rung_pen)
+        for i in range(0, 50, 4):
+            t = i / 49
+            y = helix_top + t * helix_height
+            x1 = cx + math.sin(self._dna_angle * 0.02 + t * math.pi * 4) * helix_width
+            x2 = cx + math.sin(self._dna_angle * 0.02 + t * math.pi * 4 + math.pi) * helix_width
+            painter.drawLine(QPointF(x1, y), QPointF(x2, y))
+
+        # ═══════════════════════════════════════════════════════════════════
+        # LAYER 5: Neural Network
+        # ═══════════════════════════════════════════════════════════════════
+        # Draw connections first (behind nodes)
+        for conn in self._nn_connections:
+            n1 = self._nn_nodes[conn["from"]]
+            n2 = self._nn_nodes[conn["to"]]
+
+            if conn["active"]:
+                # Animated signal
+                alpha = int(40 + self._pulse * 30)
+                conn_pen = QPen(QColor(0, 220, 255, alpha))
+            else:
+                alpha = int(15 + self._pulse * 10)
+                conn_pen = QPen(QColor(0, 140, 200, alpha))
+            conn_pen.setWidth(1)
+            painter.setPen(conn_pen)
+            painter.drawLine(QPointF(n1["x"], n1["y"]),
+                           QPointF(n2["x"], n2["y"]))
+
+            # Signal dot
+            if conn["active"]:
+                prog = conn["signal_progress"]
+                sx = n1["x"] + (n2["x"] - n1["x"]) * prog
+                sy = n1["y"] + (n2["y"] - n1["y"]) * prog
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QBrush(QColor(0, 240, 255, int(150 * (1 - prog)))))
+                painter.drawEllipse(QPointF(sx, sy), 3, 3)
+
+        # Draw nodes
+        for node in self._nn_nodes:
+            pulse = (math.sin(node["pulse"]) + 1) / 2
+            node_alpha = int(100 + pulse * 100)
+
+            # Outer glow
+            glow_r = node["size"] * 3
+            glow = QRadialGradient(node["x"], node["y"], glow_r)
+            glow.setColorAt(0.0, QColor(0, 200, 255, node_alpha // 4))
+            glow.setColorAt(1.0, QColor(0, 0, 0, 0))
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(0, 220, 255, dot_alpha)))
-            painter.drawEllipse(QPointF(dx, dy), 2, 2)
+            painter.setBrush(QBrush(glow))
+            painter.drawEllipse(QPointF(node["x"], node["y"]),
+                              glow_r, glow_r)
+
+            # Core node
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(QColor(0, 220, 255, node_alpha)))
+            painter.drawEllipse(QPointF(node["x"], node["y"]),
+                              node["size"], node["size"])
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 8: Inner glowing core
+        # LAYER 6: Central Core Energy
         # ═══════════════════════════════════════════════════════════════════
-        core_r = 30 + self._pulse * 6
+        core_r = 25 + self._pulse * 8
         core_grad = QRadialGradient(cx, cy, core_r)
-        core_alpha = int(200 + self._pulse * 55)
-        core_grad.setColorAt(0.0, QColor(0, 240, 255, core_alpha))
-        core_grad.setColorAt(0.4, QColor(0, 180, 255, core_alpha // 2))
-        core_grad.setColorAt(0.8, QColor(0, 100, 200, core_alpha // 6))
+        core_alpha = int(180 + self._pulse * 75)
+        core_grad.setColorAt(0.0, QColor(255, 255, 255, core_alpha))
+        core_grad.setColorAt(0.2, QColor(0, 240, 255, core_alpha // 2))
+        core_grad.setColorAt(0.5, QColor(0, 180, 255, core_alpha // 4))
         core_grad.setColorAt(1.0, QColor(0, 0, 0, 0))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(core_grad))
         painter.drawEllipse(QPointF(cx, cy), core_r, core_r)
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 9: Center luminous orb
+        # LAYER 7: Rotating Rings
         # ═══════════════════════════════════════════════════════════════════
-        orb_r = 12 + self._pulse * 4
-        orb_grad = QRadialGradient(cx, cy, orb_r)
-        orb_alpha = int(255 * self._intro_alpha)
-        orb_grad.setColorAt(0.0, QColor(255, 255, 255, orb_alpha))
-        orb_grad.setColorAt(0.3, QColor(0, 240, 255, orb_alpha // 2))
-        orb_grad.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(orb_grad))
-        painter.drawEllipse(QPointF(cx, cy), orb_r, orb_r)
+        # Outer hexagonal ring
+        ring_pen = QPen(QColor(0, 200, 255, int(50 + self._pulse * 30)))
+        ring_pen.setWidth(2)
+        painter.setPen(ring_pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        self._draw_hexagon(painter, cx, cy, 80 + self._pulse * 5)
+
+        # Inner rotating arc
+        arc_pen = QPen(QColor(0, 220, 255, int(80 + self._pulse * 50)))
+        arc_pen.setWidth(3)
+        arc_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        painter.setPen(arc_pen)
+        r_inner = 50
+        rect_inner = QRectF(cx - r_inner, cy - r_inner, r_inner * 2, r_inner * 2)
+        painter.drawArc(rect_inner, int(self._tick_count * 3), 60 * 16)
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 10: Energy trails
+        # LAYER 8: SONIC Title (Assembly Animation)
         # ═══════════════════════════════════════════════════════════════════
-        for t in self._energy_trails:
-            alpha = int(t["life"] * 150)
-            trail_len = int(t["progress"] * 20)
-            trail_pen = QPen(QColor(0, 220, 255, alpha))
-            trail_pen.setWidth(1)
-            trail_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-            painter.setPen(trail_pen)
-            # Draw trail from current position to target
-            for i in range(trail_len):
-                px = t["x"] + random.uniform(-2, 2)
-                py = t["y"] + random.uniform(-2, 2)
-                painter.drawEllipse(QPointF(px, py), 1, 1)
-
-        # ═══════════════════════════════════════════════════════════════════
-        # LAYER 11: Spark particles
-        # ═══════════════════════════════════════════════════════════════════
-        for p in self._spark_particles:
-            alpha = int(p["life"] * 200)
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(0, 240, 255, alpha)))
-            painter.drawEllipse(QPointF(p["x"], p["y"]), p["size"], p["size"])
-
-        # ═══════════════════════════════════════════════════════════════════
-        # LAYER 12: Dust particles (rising)
-        # ═══════════════════════════════════════════════════════════════════
-        for p in self._dust_particles:
-            alpha = int(p["life"] * 60)
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(100, 180, 220, alpha)))
-            painter.drawEllipse(QPointF(p["x"], p["y"]), p["size"], p["size"])
-
-        # ═══════════════════════════════════════════════════════════════════
-        # LAYER 13: Scan line effect
-        # ═══════════════════════════════════════════════════════════════════
-        scan_pen = QPen(QColor(0, 200, 255, 8))
-        scan_pen.setWidth(2)
-        painter.setPen(scan_pen)
-        painter.drawLine(0, self._scan_line, w, self._scan_line)
-
-        # ═══════════════════════════════════════════════════════════════════
-        # LAYER 14: SONIC AI title with glow
-        # ═══════════════════════════════════════════════════════════════════
-        title_alpha = int(255 * self._intro_alpha)
-
-        # Title glow
-        glow_title = QRadialGradient(cx, cy + 90, 100)
-        glow_title.setColorAt(0.0, QColor(0, 200, 255, title_alpha // 8))
-        glow_title.setColorAt(1.0, QColor(0, 0, 0, 0))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(glow_title))
-        painter.drawEllipse(QPointF(cx, cy + 90), 100, 40)
-
-        # Title text
-        title_font = QFont("Segoe UI", 38, QFont.Weight.DemiBold)
+        title_y = cy + 160
+        total_width = 0
+        letter_widths = []
+        title_font = QFont("Segoe UI", 48, QFont.Weight.Bold)
         painter.setFont(title_font)
-        painter.setPen(QColor(0, 220, 255, title_alpha))
-        title_rect = QRectF(self._glitch_offset, cy + 65, w, 55)
-        painter.drawText(title_rect, Qt.AlignmentFlag.AlignCenter, "SONIC")
+        for letter in self._letters:
+            fm = painter.fontMetrics()
+            lw = fm.horizontalAdvance(letter)
+            letter_widths.append(lw)
+            total_width += lw + 8
+        total_width -= 8  # Remove last gap
+
+        start_x = (w - total_width) / 2
+        for i, letter in enumerate(self._letters):
+            prog = self._letter_progress[i]
+            if prog <= 0:
+                continue
+
+            lx = start_x + sum(letter_widths[:i]) + i * 8
+            ly = title_y
+
+            # Each letter fades in from different direction
+            offset_y = int((1 - prog) * 30)
+            alpha = int(255 * prog)
+
+            # Letter glow
+            letter_glow = QRadialGradient(lx + letter_widths[i] / 2, ly, 40)
+            letter_glow.setColorAt(0.0, QColor(0, 200, 255, alpha // 6))
+            letter_glow.setColorAt(1.0, QColor(0, 0, 0, 0))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(letter_glow))
+            painter.drawEllipse(QPointF(lx + letter_widths[i] / 2, ly + 10),
+                              40, 30)
+
+            # Letter text
+            painter.setPen(QColor(0, 240, 255, alpha))
+            painter.drawText(QRectF(lx, ly + offset_y, letter_widths[i], 60),
+                           Qt.AlignmentFlag.AlignCenter, letter)
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 15: Subtitle with fade-in
+        # LAYER 9: Subtitle with fade
         # ═══════════════════════════════════════════════════════════════════
-        sub_alpha = int(180 * self._intro_alpha)
-        sub_font = QFont("Segoe UI", 13, QFont.Weight.Light)
+        sub_alpha = int(160 * self._intro_alpha)
+        sub_font = QFont("Segoe UI", 12, QFont.Weight.Light)
         painter.setFont(sub_font)
-        painter.setPen(QColor(140, 180, 210, sub_alpha))
-        sub_rect = QRectF(0, cy + 120, w, 30)
-        painter.drawText(sub_rect, Qt.AlignmentFlag.AlignCenter, "ARTIFICIAL  INTELLIGENCE")
+        painter.setPen(QColor(120, 160, 200, sub_alpha))
+        painter.drawText(QRectF(0, title_y + 65, w, 25),
+                       Qt.AlignmentFlag.AlignCenter,
+                       "A R T I F I C I A L   I N T E L L I G E N C E")
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 16: Thin decorative lines
+        # LAYER 10: Decorative accent lines
         # ═══════════════════════════════════════════════════════════════════
-        line_alpha = int(40 + self._pulse * 20)
-        line_pen = QPen(QColor(0, 180, 255, line_alpha))
-        line_pen.setWidth(1)
+        accent_y = title_y + 100
+        accent_alpha = int(50 + self._pulse * 30)
+        accent_pen = QPen(QColor(0, 180, 255, accent_alpha))
+        accent_pen.setWidth(1)
+        painter.setPen(accent_pen)
 
-        # Left line
-        painter.setPen(line_pen)
-        painter.drawLine(cx - 120, cy + 145, cx - 20, cy + 145)
-
-        # Right line
-        painter.drawLine(cx + 20, cy + 145, cx + 120, cy + 145)
+        # Left accent
+        painter.drawLine(cx - 140, accent_y, cx - 30, accent_y)
+        # Right accent
+        painter.drawLine(cx + 30, accent_y, cx + 140, accent_y)
 
         # Center diamond
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(0, 200, 255, line_alpha + 20)))
+        painter.setBrush(QBrush(QColor(0, 200, 255, accent_alpha + 20)))
         diamond = QPainterPath()
-        diamond.moveTo(cx, cy + 140)
-        diamond.lineTo(cx + 5, cy + 145)
-        diamond.lineTo(cx, cy + 150)
-        diamond.lineTo(cx - 5, cy + 145)
+        diamond.moveTo(cx, accent_y - 5)
+        diamond.lineTo(cx + 6, accent_y)
+        diamond.lineTo(cx, accent_y + 5)
+        diamond.lineTo(cx - 6, accent_y)
         diamond.closeSubpath()
         painter.drawPath(diamond)
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 17: Progress bar (premium style)
+        # LAYER 11: Progress Bar (Premium)
         # ═══════════════════════════════════════════════════════════════════
+        bar_y = accent_y + 40
         bar_w = 280
-        bar_h = 4
+        bar_h = 3
         bar_x = (w - bar_w) / 2
-        bar_y = cy + 175
 
         # Bar background
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(20, 30, 40)))
+        painter.setBrush(QBrush(QColor(15, 25, 35)))
         painter.drawRoundedRect(QRectF(bar_x, bar_y, bar_w, bar_h), 2, 2)
 
-        # Bar fill with glow
+        # Bar fill
         fill_w = bar_w * min(self._progress, 100) / 100
         if fill_w > 0:
             # Fill glow
-            fill_glow = QRadialGradient(bar_x + fill_w, bar_y + 2, 15)
-            fill_glow.setColorAt(0.0, QColor(0, 220, 255, 60))
+            fill_glow = QRadialGradient(bar_x + fill_w, bar_y + 1, 12)
+            fill_glow.setColorAt(0.0, QColor(0, 220, 255, 50))
             fill_glow.setColorAt(1.0, QColor(0, 0, 0, 0))
             painter.setBrush(QBrush(fill_glow))
-            painter.drawEllipse(QPointF(bar_x + fill_w, bar_y + 2), 15, 8)
+            painter.drawEllipse(QPointF(bar_x + fill_w, bar_y + 1), 12, 6)
 
-            # Fill bar
+            # Fill gradient
             bar_grad = QLinearGradient(bar_x, 0, bar_x + bar_w, 0)
-            bar_grad.setColorAt(0.0, QColor(0, 150, 220))
-            bar_grad.setColorAt(0.7, QColor(0, 220, 255))
+            bar_grad.setColorAt(0.0, QColor(0, 140, 200))
+            bar_grad.setColorAt(0.7, QColor(0, 210, 255))
             bar_grad.setColorAt(1.0, QColor(0, 240, 255))
             painter.setBrush(QBrush(bar_grad))
             painter.drawRoundedRect(QRectF(bar_x, bar_y, fill_w, bar_h), 2, 2)
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 18: Loading text
+        # LAYER 12: Status Text
         # ═══════════════════════════════════════════════════════════════════
-        load_font = QFont("Segoe UI", 9, QFont.Weight.Light)
-        painter.setFont(load_font)
-        painter.setPen(QColor(100, 140, 170, int(150 * self._intro_alpha)))
+        status_font = QFont("Segoe UI", 9, QFont.Weight.Light)
+        painter.setFont(status_font)
+        painter.setPen(QColor(80, 120, 160, int(140 * self._intro_alpha)))
+
         pct = min(int(self._progress), 100)
-
         if self._phase == 0:
-            load_text = "INITIALIZING"
+            status_text = "INITIALIZING NEURAL CORE"
         elif self._phase == 2:
-            load_text = "READY"
+            status_text = "SYSTEM READY"
         else:
-            load_text = f"LOADING  {pct}%"
+            status_text = f"LOADING  {pct}%"
 
-        load_rect = QRectF(0, bar_y + 16, w, 20)
-        painter.drawText(load_rect, Qt.AlignmentFlag.AlignCenter, load_text)
+        painter.drawText(QRectF(0, bar_y + 14, w, 20),
+                       Qt.AlignmentFlag.AlignCenter, status_text)
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 19: LIMITED TIME FREE banner (premium)
+        # LAYER 13: "LIMITED TIME FREE" Banner
         # ═══════════════════════════════════════════════════════════════════
-        banner_y = h - 100
-        banner_h = 60
+        banner_y = h - 110
+        banner_h = 65
 
         # Banner glow
-        banner_glow = QRadialGradient(cx, banner_y + banner_h // 2, 150)
-        banner_glow.setColorAt(0.0, QColor(0, 200, 255, int(15 * self._intro_alpha)))
+        banner_glow = QRadialGradient(cx, banner_y + banner_h // 2, 140)
+        banner_glow.setColorAt(0.0, QColor(0, 200, 255, int(12 * self._intro_alpha)))
         banner_glow.setColorAt(1.0, QColor(0, 0, 0, 0))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(banner_glow))
-        painter.drawEllipse(QPointF(cx, banner_y + banner_h // 2), 150, 40)
+        painter.drawEllipse(QPointF(cx, banner_y + banner_h // 2), 140, 35)
 
         # Banner border
-        banner_border = QPen(QColor(0, 200, 255, int(80 * self._intro_alpha)))
+        banner_border = QPen(QColor(0, 180, 255, int(60 * self._intro_alpha)))
         banner_border.setWidth(1)
         painter.setPen(banner_border)
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRoundedRect(QRectF(50, banner_y, w - 100, banner_h), 10, 10)
+        painter.drawRoundedRect(QRectF(60, banner_y, w - 120, banner_h), 8, 8)
 
-        # "LIMITED TIME FREE" text
-        banner_font = QFont("Segoe UI", 18, QFont.Weight.Bold)
+        # Main text
+        banner_font = QFont("Segoe UI", 16, QFont.Weight.Bold)
         painter.setFont(banner_font)
         painter.setPen(QColor(0, 240, 255, int(255 * self._intro_alpha)))
-        text_rect = QRectF(0, banner_y + 6, w, 30)
-        painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, "LIMITED TIME FREE")
+        painter.drawText(QRectF(0, banner_y + 8, w, 30),
+                       Qt.AlignmentFlag.AlignCenter, "LIMITED TIME FREE")
 
-        # Sub-text
+        # Sub text
         small_font = QFont("Segoe UI", 9, QFont.Weight.Light)
         painter.setFont(small_font)
-        painter.setPen(QColor(100, 180, 220, int(160 * self._intro_alpha)))
-        sub_rect2 = QRectF(0, banner_y + 38, w, 18)
-        painter.drawText(sub_rect2, Qt.AlignmentFlag.AlignCenter, "All features unlocked during beta period")
+        painter.setPen(QColor(80, 140, 180, int(140 * self._intro_alpha)))
+        painter.drawText(QRectF(0, banner_y + 40, w, 18),
+                       Qt.AlignmentFlag.AlignCenter,
+                       "All features unlocked during beta period")
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 20: Version
+        # LAYER 14: Version
         # ═══════════════════════════════════════════════════════════════════
         from version import APP_VERSION
         ver_font = QFont("Segoe UI", 8, QFont.Weight.Light)
         painter.setFont(ver_font)
-        painter.setPen(QColor(60, 80, 100, int(100 * self._intro_alpha)))
-        ver_rect = QRectF(0, h - 30, w, 20)
-        painter.drawText(ver_rect, Qt.AlignmentFlag.AlignCenter, f"v{APP_VERSION}")
+        painter.setPen(QColor(50, 70, 90, int(80 * self._intro_alpha)))
+        painter.drawText(QRectF(0, h - 30, w, 20),
+                       Qt.AlignmentFlag.AlignCenter, f"v{APP_VERSION}")
 
         painter.end()
+
+    def _draw_hexagon(self, painter: QPainter, cx: float, cy: float, size: float) -> None:
+        """Draw a hexagon at the given position."""
+        path = QPainterPath()
+        for i in range(6):
+            angle = math.radians(60 * i - 30)
+            x = cx + size * math.cos(angle)
+            y = cy + size * math.sin(angle)
+            if i == 0:
+                path.moveTo(x, y)
+            else:
+                path.lineTo(x, y)
+        path.closeSubpath()
+        painter.drawPath(path)
 
     def _finish(self) -> None:
         if self._done:
