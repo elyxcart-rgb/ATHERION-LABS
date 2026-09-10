@@ -1,4 +1,10 @@
-"""SONIC AI — Ultra Premium Splash Screen.
+"""SONIC AI — Ultra Premium Splash Screen (Theme-Matched).
+
+Colors matched to SONIC design system:
+- BG: #05070a (void black)
+- PRI: #00d9ff (electric cyan)
+- PRI_DIM: #004d66 (dimmed cyan)
+- TEXT: #c8cdd4 (platinum)
 
 Unique professional startup animation:
 - Neural network visualization (AI brain)
@@ -6,7 +12,6 @@ Unique professional startup animation:
 - DNA-style double helix
 - Connected particle constellation
 - Typography assembly animation
-- Premium entry/exit transitions
 """
 from __future__ import annotations
 
@@ -21,7 +26,7 @@ from PyQt6.QtWidgets import QWidget
 
 
 class SonicSplash(QWidget):
-    """Ultra premium splash with neural network + hex grid + DNA helix."""
+    """Ultra premium splash — theme-matched to SONIC design system."""
 
     def __init__(self, on_done=None) -> None:
         super().__init__()
@@ -34,6 +39,16 @@ class SonicSplash(QWidget):
         self._intro_alpha = 0.0
         self._ready_alpha = 0.0
         self._pulse = 0.0
+
+        # ── Theme colors ──
+        self._C_BG = QColor("#05070a")
+        self._C_BG2 = QColor("#0a0d12")
+        self._C_PRI = QColor("#00d9ff")
+        self._C_PRI_DIM = QColor("#004d66")
+        self._C_PRI_VIVID = QColor("#00eaff")
+        self._C_TEXT = QColor("#c8cdd4")
+        self._C_BORDER = QColor("#1e2530")
+        self._C_METALLIC = QColor("#4a5568")
 
         # Neural network nodes
         self._nn_nodes = []
@@ -78,12 +93,11 @@ class SonicSplash(QWidget):
     def _init_neural_network(self) -> None:
         """Create AI brain-like neural network."""
         cx, cy = 260, 280
-        # Create nodes in a brain-like cluster
         for i in range(35):
             angle = random.uniform(0, math.pi * 2)
             radius = random.uniform(20, 130)
             x = cx + math.cos(angle) * radius
-            y = cy + math.sin(angle) * radius * 0.7  # Slightly oval
+            y = cy + math.sin(angle) * radius * 0.7
             self._nn_nodes.append({
                 "x": x, "y": y,
                 "vx": 0, "vy": 0,
@@ -92,7 +106,6 @@ class SonicSplash(QWidget):
                 "layer": random.randint(0, 2),
             })
 
-        # Create connections (like synapses)
         for i in range(len(self._nn_nodes)):
             for j in range(i + 1, len(self._nn_nodes)):
                 n1, n2 = self._nn_nodes[i], self._nn_nodes[j]
@@ -152,7 +165,7 @@ class SonicSplash(QWidget):
         for node in self._nn_nodes:
             node["pulse"] += 0.08
 
-        # Signal propagation through connections
+        # Signal propagation
         for conn in self._nn_connections:
             if conn["active"]:
                 conn["signal_progress"] += 0.02
@@ -165,7 +178,6 @@ class SonicSplash(QWidget):
             star["x"] += star["vx"]
             star["y"] += star["vy"]
             star["twinkle"] += 0.03
-            # Wrap around
             if star["x"] < 0: star["x"] = 520
             if star["x"] > 520: star["x"] = 0
             if star["y"] < 0: star["y"] = 720
@@ -181,13 +193,13 @@ class SonicSplash(QWidget):
         cx, cy = w // 2, 280
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 1: Deep space gradient
+        # LAYER 1: Deep void background (matches #05070a)
         # ═══════════════════════════════════════════════════════════════════
         bg = QLinearGradient(0, 0, 0, h)
-        bg.setColorAt(0.0, QColor(2, 4, 12))
-        bg.setColorAt(0.3, QColor(6, 8, 18))
-        bg.setColorAt(0.7, QColor(4, 6, 14))
-        bg.setColorAt(1.0, QColor(2, 4, 10))
+        bg.setColorAt(0.0, QColor("#05070a"))
+        bg.setColorAt(0.3, QColor("#0a0d12"))
+        bg.setColorAt(0.7, QColor("#080b10"))
+        bg.setColorAt(1.0, QColor("#05070a"))
         painter.setBrush(QBrush(bg))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(0, 0, w, h, 24, 24)
@@ -197,32 +209,30 @@ class SonicSplash(QWidget):
         # ═══════════════════════════════════════════════════════════════════
         for star in self._constellation:
             twinkle = (math.sin(star["twinkle"]) + 1) / 2
-            alpha = int(30 + twinkle * 50)
+            alpha = int(20 + twinkle * 40)
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(150, 180, 220, alpha)))
+            painter.setBrush(QBrush(QColor(74, 85, 104, alpha)))
             painter.drawEllipse(QPointF(star["x"], star["y"]),
                               star["size"], star["size"])
 
-        # Connect nearby constellation stars
-        const_pen = QPen(QColor(80, 120, 180, 15))
-        const_pen.setWidth(1)
-        painter.setPen(const_pen)
+        # Connect nearby stars
         for i in range(len(self._constellation)):
             for j in range(i + 1, min(i + 5, len(self._constellation))):
                 s1, s2 = self._constellation[i], self._constellation[j]
                 dist = math.hypot(s1["x"] - s2["x"], s1["y"] - s2["y"])
                 if dist < 80:
-                    alpha = int(15 * (1 - dist / 80))
-                    const_pen.setColor(QColor(80, 120, 180, alpha))
+                    alpha = int(10 * (1 - dist / 80))
+                    const_pen = QPen(QColor(30, 57, 74, alpha))
+                    const_pen.setWidth(1)
                     painter.setPen(const_pen)
                     painter.drawLine(QPointF(s1["x"], s1["y"]),
                                    QPointF(s2["x"], s2["y"]))
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 3: Hexagonal grid
+        # LAYER 3: Hexagonal grid (theme border color)
         # ═══════════════════════════════════════════════════════════════════
-        hex_alpha = int(12 + self._pulse * 8)
-        hex_pen = QPen(QColor(0, 160, 240, hex_alpha))
+        hex_alpha = int(8 + self._pulse * 6)
+        hex_pen = QPen(QColor(0, 77, 102, hex_alpha))  # PRI_DIM
         hex_pen.setWidth(1)
         painter.setPen(hex_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -238,14 +248,13 @@ class SonicSplash(QWidget):
                     self._draw_hexagon(painter, x, y, hex_size * 0.45)
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 4: DNA Double Helix
+        # LAYER 4: DNA Double Helix (cyan accent)
         # ═══════════════════════════════════════════════════════════════════
-        helix_alpha = int(60 + self._pulse * 40)
+        helix_alpha = int(40 + self._pulse * 30)
         helix_width = 60
         helix_height = 300
         helix_top = cy - 100
 
-        # Draw helix strands
         for strand in range(2):
             strand_offset = math.pi * strand
             points = []
@@ -255,16 +264,15 @@ class SonicSplash(QWidget):
                 x = cx + math.sin(self._dna_angle * 0.02 + t * math.pi * 4 + strand_offset) * helix_width
                 points.append(QPointF(x, y))
 
-            # Draw strand line
-            strand_pen = QPen(QColor(0, 200, 255, helix_alpha))
+            strand_pen = QPen(QColor(0, 217, 255, helix_alpha))  # PRI
             strand_pen.setWidth(2)
             strand_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
             painter.setPen(strand_pen)
             for i in range(len(points) - 1):
                 painter.drawLine(points[i], points[i + 1])
 
-        # Draw cross-connections (rungs)
-        rung_pen = QPen(QColor(0, 180, 255, helix_alpha // 2))
+        # Cross-connections
+        rung_pen = QPen(QColor(0, 150, 200, helix_alpha // 2))
         rung_pen.setWidth(1)
         painter.setPen(rung_pen)
         for i in range(0, 50, 4):
@@ -275,52 +283,46 @@ class SonicSplash(QWidget):
             painter.drawLine(QPointF(x1, y), QPointF(x2, y))
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 5: Neural Network
+        # LAYER 5: Neural Network (metallic + cyan)
         # ═══════════════════════════════════════════════════════════════════
-        # Draw connections first (behind nodes)
         for conn in self._nn_connections:
             n1 = self._nn_nodes[conn["from"]]
             n2 = self._nn_nodes[conn["to"]]
 
             if conn["active"]:
-                # Animated signal
-                alpha = int(40 + self._pulse * 30)
-                conn_pen = QPen(QColor(0, 220, 255, alpha))
+                alpha = int(30 + self._pulse * 25)
+                conn_pen = QPen(QColor(0, 217, 255, alpha))  # PRI
             else:
-                alpha = int(15 + self._pulse * 10)
-                conn_pen = QPen(QColor(0, 140, 200, alpha))
+                alpha = int(10 + self._pulse * 8)
+                conn_pen = QPen(QColor(30, 37, 48, alpha))  # BORDER
             conn_pen.setWidth(1)
             painter.setPen(conn_pen)
             painter.drawLine(QPointF(n1["x"], n1["y"]),
                            QPointF(n2["x"], n2["y"]))
 
-            # Signal dot
             if conn["active"]:
                 prog = conn["signal_progress"]
                 sx = n1["x"] + (n2["x"] - n1["x"]) * prog
                 sy = n1["y"] + (n2["y"] - n1["y"]) * prog
                 painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(QBrush(QColor(0, 240, 255, int(150 * (1 - prog)))))
+                painter.setBrush(QBrush(QColor(0, 234, 255, int(120 * (1 - prog)))))  # PRI_VIVID
                 painter.drawEllipse(QPointF(sx, sy), 3, 3)
 
-        # Draw nodes
         for node in self._nn_nodes:
             pulse = (math.sin(node["pulse"]) + 1) / 2
-            node_alpha = int(100 + pulse * 100)
+            node_alpha = int(80 + pulse * 80)
 
-            # Outer glow
             glow_r = node["size"] * 3
             glow = QRadialGradient(node["x"], node["y"], glow_r)
-            glow.setColorAt(0.0, QColor(0, 200, 255, node_alpha // 4))
+            glow.setColorAt(0.0, QColor(0, 150, 200, node_alpha // 4))
             glow.setColorAt(1.0, QColor(0, 0, 0, 0))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(glow))
             painter.drawEllipse(QPointF(node["x"], node["y"]),
                               glow_r, glow_r)
 
-            # Core node
             painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(0, 220, 255, node_alpha)))
+            painter.setBrush(QBrush(QColor(0, 217, 255, node_alpha)))  # PRI
             painter.drawEllipse(QPointF(node["x"], node["y"]),
                               node["size"], node["size"])
 
@@ -329,10 +331,10 @@ class SonicSplash(QWidget):
         # ═══════════════════════════════════════════════════════════════════
         core_r = 25 + self._pulse * 8
         core_grad = QRadialGradient(cx, cy, core_r)
-        core_alpha = int(180 + self._pulse * 75)
-        core_grad.setColorAt(0.0, QColor(255, 255, 255, core_alpha))
-        core_grad.setColorAt(0.2, QColor(0, 240, 255, core_alpha // 2))
-        core_grad.setColorAt(0.5, QColor(0, 180, 255, core_alpha // 4))
+        core_alpha = int(160 + self._pulse * 95)
+        core_grad.setColorAt(0.0, QColor(224, 228, 234, core_alpha))  # WHITE (platinum)
+        core_grad.setColorAt(0.2, QColor(0, 217, 255, core_alpha // 2))  # PRI
+        core_grad.setColorAt(0.5, QColor(0, 150, 200, core_alpha // 4))
         core_grad.setColorAt(1.0, QColor(0, 0, 0, 0))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(core_grad))
@@ -341,15 +343,13 @@ class SonicSplash(QWidget):
         # ═══════════════════════════════════════════════════════════════════
         # LAYER 7: Rotating Rings
         # ═══════════════════════════════════════════════════════════════════
-        # Outer hexagonal ring
-        ring_pen = QPen(QColor(0, 200, 255, int(50 + self._pulse * 30)))
+        ring_pen = QPen(QColor(0, 217, 255, int(40 + self._pulse * 25)))  # PRI
         ring_pen.setWidth(2)
         painter.setPen(ring_pen)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         self._draw_hexagon(painter, cx, cy, 80 + self._pulse * 5)
 
-        # Inner rotating arc
-        arc_pen = QPen(QColor(0, 220, 255, int(80 + self._pulse * 50)))
+        arc_pen = QPen(QColor(0, 217, 255, int(60 + self._pulse * 40)))  # PRI
         arc_pen.setWidth(3)
         arc_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         painter.setPen(arc_pen)
@@ -370,7 +370,7 @@ class SonicSplash(QWidget):
             lw = fm.horizontalAdvance(letter)
             letter_widths.append(lw)
             total_width += lw + 8
-        total_width -= 8  # Remove last gap
+        total_width -= 8
 
         start_x = (w - total_width) / 2
         for i, letter in enumerate(self._letters):
@@ -380,32 +380,28 @@ class SonicSplash(QWidget):
 
             lx = start_x + sum(letter_widths[:i]) + i * 8
             ly = title_y
-
-            # Each letter fades in from different direction
             offset_y = int((1 - prog) * 30)
             alpha = int(255 * prog)
 
-            # Letter glow
             letter_glow = QRadialGradient(lx + letter_widths[i] / 2, ly, 40)
-            letter_glow.setColorAt(0.0, QColor(0, 200, 255, alpha // 6))
+            letter_glow.setColorAt(0.0, QColor(0, 150, 200, alpha // 6))
             letter_glow.setColorAt(1.0, QColor(0, 0, 0, 0))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.setBrush(QBrush(letter_glow))
             painter.drawEllipse(QPointF(lx + letter_widths[i] / 2, ly + 10),
                               40, 30)
 
-            # Letter text
-            painter.setPen(QColor(0, 240, 255, alpha))
+            painter.setPen(QColor(0, 217, 255, alpha))  # PRI
             painter.drawText(QRectF(lx, ly + offset_y, letter_widths[i], 60),
                            Qt.AlignmentFlag.AlignCenter, letter)
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 9: Subtitle with fade
+        # LAYER 9: Subtitle (platinum text)
         # ═══════════════════════════════════════════════════════════════════
-        sub_alpha = int(160 * self._intro_alpha)
+        sub_alpha = int(140 * self._intro_alpha)
         sub_font = QFont("Segoe UI", 12, QFont.Weight.Light)
         painter.setFont(sub_font)
-        painter.setPen(QColor(120, 160, 200, sub_alpha))
+        painter.setPen(QColor(107, 122, 138, sub_alpha))  # TEXT_MED
         painter.drawText(QRectF(0, title_y + 65, w, 25),
                        Qt.AlignmentFlag.AlignCenter,
                        "A R T I F I C I A L   I N T E L L I G E N C E")
@@ -414,19 +410,16 @@ class SonicSplash(QWidget):
         # LAYER 10: Decorative accent lines
         # ═══════════════════════════════════════════════════════════════════
         accent_y = title_y + 100
-        accent_alpha = int(50 + self._pulse * 30)
-        accent_pen = QPen(QColor(0, 180, 255, accent_alpha))
+        accent_alpha = int(40 + self._pulse * 25)
+        accent_pen = QPen(QColor(0, 77, 102, accent_alpha))  # PRI_DIM
         accent_pen.setWidth(1)
         painter.setPen(accent_pen)
 
-        # Left accent
         painter.drawLine(cx - 140, accent_y, cx - 30, accent_y)
-        # Right accent
         painter.drawLine(cx + 30, accent_y, cx + 140, accent_y)
 
-        # Center diamond
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(0, 200, 255, accent_alpha + 20)))
+        painter.setBrush(QBrush(QColor(0, 217, 255, accent_alpha + 15)))  # PRI
         diamond = QPainterPath()
         diamond.moveTo(cx, accent_y - 5)
         diamond.lineTo(cx + 6, accent_y)
@@ -436,33 +429,29 @@ class SonicSplash(QWidget):
         painter.drawPath(diamond)
 
         # ═══════════════════════════════════════════════════════════════════
-        # LAYER 11: Progress Bar (Premium)
+        # LAYER 11: Progress Bar
         # ═══════════════════════════════════════════════════════════════════
         bar_y = accent_y + 40
         bar_w = 280
         bar_h = 3
         bar_x = (w - bar_w) / 2
 
-        # Bar background
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(QColor(15, 25, 35)))
+        painter.setBrush(QBrush(QColor("#0c1018")))  # BAR_BG
         painter.drawRoundedRect(QRectF(bar_x, bar_y, bar_w, bar_h), 2, 2)
 
-        # Bar fill
         fill_w = bar_w * min(self._progress, 100) / 100
         if fill_w > 0:
-            # Fill glow
             fill_glow = QRadialGradient(bar_x + fill_w, bar_y + 1, 12)
-            fill_glow.setColorAt(0.0, QColor(0, 220, 255, 50))
+            fill_glow.setColorAt(0.0, QColor(0, 217, 255, 40))
             fill_glow.setColorAt(1.0, QColor(0, 0, 0, 0))
             painter.setBrush(QBrush(fill_glow))
             painter.drawEllipse(QPointF(bar_x + fill_w, bar_y + 1), 12, 6)
 
-            # Fill gradient
             bar_grad = QLinearGradient(bar_x, 0, bar_x + bar_w, 0)
-            bar_grad.setColorAt(0.0, QColor(0, 140, 200))
-            bar_grad.setColorAt(0.7, QColor(0, 210, 255))
-            bar_grad.setColorAt(1.0, QColor(0, 240, 255))
+            bar_grad.setColorAt(0.0, QColor(0, 100, 150))
+            bar_grad.setColorAt(0.7, QColor(0, 217, 255))
+            bar_grad.setColorAt(1.0, QColor(0, 234, 255))  # PRI_VIVID
             painter.setBrush(QBrush(bar_grad))
             painter.drawRoundedRect(QRectF(bar_x, bar_y, fill_w, bar_h), 2, 2)
 
@@ -471,7 +460,7 @@ class SonicSplash(QWidget):
         # ═══════════════════════════════════════════════════════════════════
         status_font = QFont("Segoe UI", 9, QFont.Weight.Light)
         painter.setFont(status_font)
-        painter.setPen(QColor(80, 120, 160, int(140 * self._intro_alpha)))
+        painter.setPen(QColor(74, 85, 104, int(120 * self._intro_alpha)))  # METALLIC
 
         pct = min(int(self._progress), 100)
         if self._phase == 0:
@@ -490,32 +479,28 @@ class SonicSplash(QWidget):
         banner_y = h - 110
         banner_h = 65
 
-        # Banner glow
         banner_glow = QRadialGradient(cx, banner_y + banner_h // 2, 140)
-        banner_glow.setColorAt(0.0, QColor(0, 200, 255, int(12 * self._intro_alpha)))
+        banner_glow.setColorAt(0.0, QColor(0, 150, 200, int(10 * self._intro_alpha)))
         banner_glow.setColorAt(1.0, QColor(0, 0, 0, 0))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(QBrush(banner_glow))
         painter.drawEllipse(QPointF(cx, banner_y + banner_h // 2), 140, 35)
 
-        # Banner border
-        banner_border = QPen(QColor(0, 180, 255, int(60 * self._intro_alpha)))
+        banner_border = QPen(QColor(0, 77, 102, int(50 * self._intro_alpha)))  # PRI_DIM
         banner_border.setWidth(1)
         painter.setPen(banner_border)
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRoundedRect(QRectF(60, banner_y, w - 120, banner_h), 8, 8)
 
-        # Main text
         banner_font = QFont("Segoe UI", 16, QFont.Weight.Bold)
         painter.setFont(banner_font)
-        painter.setPen(QColor(0, 240, 255, int(255 * self._intro_alpha)))
+        painter.setPen(QColor(0, 217, 255, int(255 * self._intro_alpha)))  # PRI
         painter.drawText(QRectF(0, banner_y + 8, w, 30),
                        Qt.AlignmentFlag.AlignCenter, "LIMITED TIME FREE")
 
-        # Sub text
         small_font = QFont("Segoe UI", 9, QFont.Weight.Light)
         painter.setFont(small_font)
-        painter.setPen(QColor(80, 140, 180, int(140 * self._intro_alpha)))
+        painter.setPen(QColor(74, 85, 104, int(120 * self._intro_alpha)))  # METALLIC
         painter.drawText(QRectF(0, banner_y + 40, w, 18),
                        Qt.AlignmentFlag.AlignCenter,
                        "All features unlocked during beta period")
@@ -526,7 +511,7 @@ class SonicSplash(QWidget):
         from version import APP_VERSION
         ver_font = QFont("Segoe UI", 8, QFont.Weight.Light)
         painter.setFont(ver_font)
-        painter.setPen(QColor(50, 70, 90, int(80 * self._intro_alpha)))
+        painter.setPen(QColor(30, 37, 48, int(70 * self._intro_alpha)))  # BORDER
         painter.drawText(QRectF(0, h - 30, w, 20),
                        Qt.AlignmentFlag.AlignCenter, f"v{APP_VERSION}")
 
