@@ -225,7 +225,7 @@ class IntelligenceCore(QWidget):
         # ── Second rotating ring (opposite direction) ─────────────────────
         mid_r2 = 55
         mid_pen2 = QPen(QColor(0, 150, 220, int(80 * self._glow_intensity)))
-        mid_pen2.setWidth(1.5)
+        mid_pen2.setWidth(2)
         painter.setPen(mid_pen2)
         rect2 = QRectF(cx - mid_r2, cy - mid_r2, mid_r2 * 2, mid_r2 * 2)
         painter.drawArc(rect2, int(-self._angle * 0.7 * 16), 45 * 16)
@@ -258,7 +258,7 @@ class IntelligenceCore(QWidget):
         # ── Thin decorative arcs ─────────────────────────────────────────
         dec_r = 45
         dec_pen = QPen(QColor(0, 180, 255, int(60 * self._glow_intensity)))
-        dec_pen.setWidth(0.5)
+        dec_pen.setWidth(1)
         painter.setPen(dec_pen)
         dec_rect = QRectF(cx - dec_r, cy - dec_r, dec_r * 2, dec_r * 2)
         painter.drawArc(dec_rect, int(self._angle * 0.5 * 16), 30 * 16)
