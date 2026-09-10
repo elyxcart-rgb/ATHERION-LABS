@@ -452,55 +452,60 @@ class SonicBootUI(QWidget):
         self._phase = "init"
         self._entry_opacity = 0.0
         self._core_state = CoreState.INITIALIZING
+        self._cinematic_done = False
 
         self.setWindowTitle("SONIC AI")
         self.setMinimumSize(680, 560)
         self.setMaximumSize(680, 560)
         self.setStyleSheet("""
             QWidget {
-                background: #060810;
-                color: #e0e0e0;
+                background: #05070a;
+                color: #c8cdd4;
                 font-family: 'Segoe UI', sans-serif;
             }
         """)
 
         self._build_ui()
-        self._start_entry_animation()
+        self._start_cinematic_boot()
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(50, 35, 50, 35)
         layout.setSpacing(8)
 
-        # ── Central Core ──────────────────────────────────────────────────
+        # ── Cinematic Boot Animation (replaces old IntelligenceCore) ────
+        from .cinematic import SonicBootAnimation
+        self._cinematic = SonicBootAnimation()
+        self._cinematic.boot_complete.connect(self._on_cinematic_complete)
+        self._cinematic.setFixedSize(200, 200)
         core_container = QHBoxLayout()
         core_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self._core = IntelligenceCore()
-        core_container.addWidget(self._core)
-
+        core_container.addWidget(self._cinematic)
         layout.addLayout(core_container)
         layout.addSpacing(5)
 
-        # ── Title ─────────────────────────────────────────────────────────
+        # ── Title (hidden initially, revealed by cinematic) ─────────────
         self._title = QLabel("SONIC AI")
         self._title.setFont(QFont("Segoe UI", 32, QFont.Weight.DemiBold))
         self._title.setStyleSheet("color: #d0d8e0; background: transparent; letter-spacing: 2px;")
         self._title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._title.setGraphicsEffect(self._create_glow(0.3))
+        self._title.hide()
         layout.addWidget(self._title)
 
-        # ── Subtitle ──────────────────────────────────────────────────────
-        self._subtitle = QLabel("Initializing your personal intelligence")
+        # ── Subtitle (hidden initially) ─────────────────────────────────
+        self._subtitle = QLabel("Your personal intelligence is initializing.")
         self._subtitle.setFont(QFont("Segoe UI", 12))
         self._subtitle.setStyleSheet("color: #6a7a8a; background: transparent;")
         self._subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._subtitle.hide()
         layout.addWidget(self._subtitle)
 
         layout.addSpacing(10)
 
-        # ── Stage Pipeline ────────────────────────────────────────────────
+        # ── Stage Pipeline (hidden initially) ───────────────────────────
         self._pipeline = StagePipeline()
+        self._pipeline.hide()
         pipeline_layout = QHBoxLayout()
         pipeline_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         pipeline_layout.addWidget(self._pipeline)
@@ -508,13 +513,14 @@ class SonicBootUI(QWidget):
 
         layout.addSpacing(8)
 
-        # ── Progress Section ──────────────────────────────────────────────
+        # ── Progress Section (hidden initially) ─────────────────────────
         progress_layout = QHBoxLayout()
         progress_layout.setSpacing(15)
 
         self._progress_label = QLabel("INITIALIZATION")
         self._progress_label.setFont(QFont("Segoe UI", 10))
         self._progress_label.setStyleSheet("color: #5a6a7a; background: transparent; letter-spacing: 1px;")
+        self._progress_label.hide()
         progress_layout.addWidget(self._progress_label)
 
         progress_layout.addStretch()
@@ -522,31 +528,35 @@ class SonicBootUI(QWidget):
         self._percent_label = QLabel("0%")
         self._percent_label.setFont(QFont("Segoe UI", 24, QFont.Weight.Light))
         self._percent_label.setStyleSheet("color: #c0d0e0; background: transparent;")
+        self._percent_label.hide()
         progress_layout.addWidget(self._percent_label)
 
         layout.addLayout(progress_layout)
 
-        # ── Progress Track ────────────────────────────────────────────────
+        # ── Progress Track (hidden initially) ───────────────────────────
         self._progress_track = QWidget()
         self._progress_track.setFixedHeight(3)
         self._progress_track.setStyleSheet("background: transparent;")
+        self._progress_track.hide()
         self._progress_value = 0
         layout.addWidget(self._progress_track)
 
-        # ── Status Message ────────────────────────────────────────────────
+        # ── Status Message (hidden initially) ───────────────────────────
         self._status_label = QLabel("Preparing your environment...")
         self._status_label.setFont(QFont("Segoe UI", 11))
         self._status_label.setStyleSheet("color: #8090a0; background: transparent; padding: 8px 0;")
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._status_label.hide()
         layout.addWidget(self._status_label)
 
-        # ── Glass Status Panel ────────────────────────────────────────────
+        # ── Glass Status Panel (hidden initially) ───────────────────────
         self._glass_panel = GlassStatusPanel()
+        self._glass_panel.hide()
         layout.addWidget(self._glass_panel)
 
         layout.addSpacing(5)
 
-        # ── Buttons ───────────────────────────────────────────────────────
+        # ── Buttons (hidden initially) ─────────────────────────────────
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
 
@@ -594,6 +604,7 @@ class SonicBootUI(QWidget):
         """)
         self._action_btn.clicked.connect(self._on_action)
         self._action_btn.setEnabled(False)
+        self._action_btn.hide()
         btn_layout.addWidget(self._action_btn)
 
         layout.addLayout(btn_layout)
@@ -605,38 +616,35 @@ class SonicBootUI(QWidget):
         effect.setOffset(0, 0)
         return effect
 
-    def _start_entry_animation(self):
-        """Cinematic entry animation."""
-        self._entry_opacity = 0.0
+    def _start_cinematic_boot(self):
+        """Start the cinematic boot animation sequence."""
+        self._cinematic.start()
 
-        # Fade in sequence
-        self._fade_timer = QTimer(self)
-        self._fade_step = 0
-        self._fade_timer.timeout.connect(self._animate_entry)
-        self._fade_timer.start(20)
+    def _on_cinematic_complete(self):
+        """Called when cinematic animation finishes — transition to setup UI."""
+        self._cinematic_done = True
+        # Show setup UI elements with fade-in
+        self._fade_in_setup_ui()
 
-    def _animate_entry(self):
-        self._fade_step += 1
-        self._entry_opacity = min(1.0, self._fade_step / 25.0)
+    def _fade_in_setup_ui(self):
+        """Fade in setup UI elements after cinematic completes."""
+        self._title.show()
+        self._subtitle.show()
+        self._pipeline.show()
+        self._progress_label.show()
+        self._percent_label.show()
+        self._progress_track.show()
+        self._status_label.show()
+        self._glass_panel.show()
+        self._action_btn.show()
 
-        # Apply opacity
-        self._core.setGraphicsEffect(self._create_fade(self._entry_opacity * 0.8 + 0.2))
-        self._title.setGraphicsEffect(self._create_fade(self._entry_opacity))
-        self._subtitle.setGraphicsEffect(self._create_fade(min(1.0, self._entry_opacity * 1.2)))
-
-        if self._fade_step >= 25:
-            self._fade_timer.stop()
-            QTimer.singleShot(300, self._start_detection)
-
-    def _create_fade(self, opacity):
-        effect = QGraphicsOpacityEffect()
-        effect.setOpacity(opacity)
-        return effect
+        # Start detection after a brief moment
+        QTimer.singleShot(400, self._start_detection)
 
     def _start_detection(self):
         self._phase = "detecting"
         self._core_state = CoreState.CHECKING
-        self._core.set_state(CoreState.CHECKING)
+        self._cinematic.set_setup_state("checking")
         self._status_label.setText("Scanning your environment...")
         self._pipeline.set_stage("system", "active")
 
@@ -652,13 +660,14 @@ class SonicBootUI(QWidget):
         self._percent_label.setText(f"{pct}%")
         self._progress_track.update()
         self._status_label.setText(msg)
+        self._cinematic.set_setup_state("checking", pct, msg)
 
     def _on_stage_update(self, stage: str, state: str):
         self._pipeline.set_stage(stage, state)
         if state == "active":
-            self._core.set_state(CoreState.CHECKING)
+            self._cinematic.set_setup_state("checking")
         elif state == "done":
-            self._core.set_state(CoreState.VERIFYING)
+            self._cinematic.set_setup_state("verifying")
 
     def _on_req_check(self, result: DepResult):
         self._results.append(result)
@@ -671,7 +680,7 @@ class SonicBootUI(QWidget):
 
     def _on_detection_done(self, success: bool, msg: str):
         if not success:
-            self._core.set_state(CoreState.ERROR)
+            self._cinematic.set_setup_state("error")
             self._status_label.setText("Initialization needs attention")
             self._action_btn.setText("Retry")
             self._action_btn.setEnabled(True)
@@ -689,12 +698,12 @@ class SonicBootUI(QWidget):
 
         if required_missing:
             names = ", ".join(r.name for r in required_missing)
-            self._core.set_state(CoreState.ERROR)
+            self._cinematic.set_setup_state("error")
             self._status_label.setText(f"Required: {names}")
             self._action_btn.setText("Retry")
             self._action_btn.setEnabled(True)
         elif optional_missing:
-            self._core.set_state(CoreState.READY)
+            self._cinematic.set_setup_state("ready")
             self._pipeline.set_stage("ready", "done")
             self._status_label.setText("SONIC is ready.")
             self._subtitle.setText("Your personal intelligence is initialized.")
@@ -702,7 +711,7 @@ class SonicBootUI(QWidget):
             self._action_btn.setEnabled(True)
             self._skip_btn.show()
         else:
-            self._core.set_state(CoreState.READY)
+            self._cinematic.set_setup_state("ready")
             self._pipeline.set_stage("ready", "done")
             self._status_label.setText("SONIC is ready.")
             self._subtitle.setText("Your personal intelligence is initialized.")
