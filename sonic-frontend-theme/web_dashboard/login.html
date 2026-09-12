@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>SONIC</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:     #05070a;        /* Void — deepest background */
+      --panel:  #0a0d12;        /* Primary surface */
+      --panel2: #0f1218;        /* Secondary surface */
+      --panel3: #151a21;        /* Elevated surface */
+      --border: #1e2530;        /* Default — dark metallic */
+      --border-b: #2a3440;      /* Bright — active/selected */
+      --accent: #00d9ff;        /* Electric cyan — active state only */
+      --accent-dim: #004d66;    /* Dimmed cyan */
+      --accent-ghost: #081820;  /* Ghost — selection bg */
+      --text:   #c8cdd4;        /* Primary — soft platinum */
+      --text-dim: #4a5568;      /* Dimmed — timestamps */
+      --text-med: #6b7a8a;      /* Medium — labels */
+      --white:  #e0e4ea;        /* Bright — emphasis */
+      --green:  #3a9a6a;        /* Success — healthy */
+      --green-dim: #1a4a30;     /* Dimmed green */
+      --red:    #c43a4a;        /* Error — restrained */
+      --red-dim: #2a1018;       /* Dimmed red bg */
+      --amber:  #b89040;        /* Warning — non-critical */
+      --metallic: #4a5568;      /* Platinum highlight */
+    }
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* cockpit ambience: faint cyan glow + scanlines */
+    body::before {
+      content: "";
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse 70% 45% at 50% -5%, rgba(0,217,255,0.05), transparent 70%),
+        repeating-linear-gradient(0deg, rgba(255,255,255,0.01) 0 1px, transparent 1px 3px);
+      pointer-events: none;
+    }
+    .card {
+      position: relative;
+      width: 340px;
+      max-width: 92vw;
+      padding: 44px 36px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      text-align: center;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 24px 60px rgba(0,0,0,0.55);
+    }
+    .card::before {
+      content: "";
+      position: absolute; top: -1px; left: 18%; right: 18%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(0,217,255,0.4), transparent);
+    }
+    .logo {
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 30px;
+      font-weight: 700;
+      letter-spacing: 9px;
+      text-indent: 9px;
+      margin-bottom: 6px;
+    }
+    .logo em {
+      color: var(--accent);
+      font-style: normal;
+      text-shadow: 0 0 14px rgba(0,217,255,0.45);
+    }
+    .sub {
+      font-size: 10px;
+      color: var(--text-med);
+      letter-spacing: 3.5px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+    .sub b { color: var(--accent); font-weight: 700; }
+    .hint {
+      font-size: 12px;
+      color: var(--text-med);
+      line-height: 1.55;
+      margin-bottom: 28px;
+    }
+    .key-wrap {
+      position: relative;
+      margin-bottom: 16px;
+    }
+    .key-input {
+      width: 100%;
+      padding: 18px 14px;
+      background: rgba(0,217,255,0.03);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      color: var(--accent);
+      font-size: 30px;
+      font-weight: 700;
+      font-family: 'Consolas', 'Courier New', monospace;
+      text-align: center;
+      letter-spacing: 10px;
+      text-transform: uppercase;
+      outline: none;
+      transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+      caret-color: var(--accent);
+    }
+    .key-input::placeholder {
+      color: rgba(74,85,104,0.4);
+      letter-spacing: 6px;
+      font-size: 20px;
+    }
+    .key-input:focus {
+      border-color: var(--accent);
+      background: var(--accent-ghost);
+      box-shadow: 0 0 0 3px rgba(0,217,255,0.08), 0 0 18px rgba(0,217,255,0.1);
+    }
+    .err {
+      font-size: 12px;
+      color: var(--red);
+      min-height: 18px;
+      margin-bottom: 14px;
+    }
+    .btn {
+      width: 100%;
+      padding: 14px;
+      background: var(--accent);
+      color: #030303;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      text-indent: 4px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+    }
+    .btn:hover  { opacity: 0.9; box-shadow: 0 0 18px rgba(0,217,255,0.2); }
+    .btn:active { transform: scale(0.98); }
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%,60% { transform: translateX(-7px); }
+      40%,80% { transform: translateX(7px); }
+    }
+    .shake { animation: shake 0.35s ease; }
+    .voice-note {
+      font-size: 10px;
+      color: var(--text-med);
+      margin-top: 20px;
+      line-height: 1.6;
+      text-align: left;
+      border-top: 1px dashed var(--border);
+      padding-top: 14px;
+    }
+    .voice-note code {
+      background: rgba(0,217,255,0.05);
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 9px;
+      color: var(--accent);
+    }
+    #reconnecting {
+      display: none;
+      color: var(--accent);
+      font-size: 12px;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="logo"><em>S</em>ONIC</div>
+    <div class="sub">SONIC<b>·</b>Remote Access</div>
+    <p id="reconnecting">Reconnecting…</p>
+    <p class="hint">Press <strong style="color:var(--text)">Remote Control</strong> in the SONIC desktop app to get a QR code or session key.</p>
+    <div class="key-wrap">
+      <input class="key-input" id="key" type="text" maxlength="6"
+             autocomplete="off" autocorrect="off" spellcheck="false"
+             placeholder="· · · · · ·">
+    </div>
+    <div class="err" id="err"></div>
+    <button class="btn" onclick="doLogin()">CONNECT</button>
+    <p class="voice-note">
+      🎤 <strong style="color:var(--text)">Voice commands:</strong> open
+      <code>chrome://flags</code> on your phone, search
+      <code>Insecure origins treated as secure</code>, add your SONIC URL, tap Relaunch.
+    </p>
+  </div>
+
+  <script>
+    // Try auto-reconnect with stored device token (set on first QR login)
+    (async function() {
+      const devTok = localStorage.getItem('SONIC_device_token');
+      if (!devTok) return;
+      document.getElementById('reconnecting').style.display = 'block';
+      try {
+        const r = await fetch('/api/device-login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device_token: devTok }),
+        });
+        const d = await r.json();
+        if (d.ok && d.token) {
+          sessionStorage.setItem('SONIC_key', d.key);
+          sessionStorage.setItem('SONIC_token', d.token);
+          location.replace('/');
+          return;
+        }
+      } catch (_) {}
+      // Device token rejected (server restarted) — clear it and show normal form
+      localStorage.removeItem('SONIC_device_token');
+      document.getElementById('reconnecting').style.display = 'none';
+    })();
+
+    const inp = document.getElementById('key');
+    inp.focus();
+
+    inp.addEventListener('input', () => {
+      inp.value = inp.value.toUpperCase().replace(/[^A-Z2-9]/g, '');
+      if (inp.value.length === 6) doLogin();
+    });
+    inp.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+    async function doLogin() {
+      const key = inp.value.trim();
+      if (key.length < 6) { shake(); return; }
+      let data;
+      try {
+        const r = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pin: key })
+        });
+        data = await r.json();
+      } catch (e) {
+        document.getElementById('err').textContent = 'Connection error';
+        shake(); return;
+      }
+      if (data.ok && data.token) {
+        sessionStorage.setItem('SONIC_key', key);
+        sessionStorage.setItem('SONIC_token', data.token);
+        location.href = '/';
+      } else {
+        inp.value = '';
+        inp.focus();
+        document.getElementById('err').textContent = 'Invalid or expired key';
+        shake();
+      }
+    }
+
+    function shake() {
+      const c = document.getElementById('card');
+      c.classList.remove('shake');
+      void c.offsetWidth;
+      c.classList.add('shake');
+    }
+  </script>
+</body>
+</html>

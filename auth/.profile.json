@@ -1,0 +1,16 @@
+{
+  "profile": {
+    "full_name": "ahmad raza",
+    "phone": "sa",
+    "location": "dasdsa",
+    "timezone": "dsa",
+    "api_keys": {},
+    "preferences": {
+      "assistant_name": "SONIC",
+      "user_name": "",
+      "voice": "en-US",
+      "theme": "light"
+    },
+    "onboarding_completed": 1
+  }
+}
