@@ -728,9 +728,9 @@ class AuthOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
             AuthOverlay {{
-                background: rgba(0, 6, 10, 245);
+                background: rgba(0, 4, 8, 248);
                 border: 1px solid {C.BORDER_B};
-                border-radius: 6px;
+                border-radius: 8px;
             }}
         """)
         self._mode = "login"  # login | signup | forgot | verify
@@ -739,8 +739,8 @@ class AuthOverlay(QWidget):
         self._error_timer.timeout.connect(lambda: self._error_lbl.setText(""))
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 22, 30, 22)
-        layout.setSpacing(6)
+        layout.setContentsMargins(32, 28, 32, 28)
+        layout.setSpacing(5)
 
         def _lbl(txt, font_size=9, bold=False, color=C.PRI,
                  align=Qt.AlignmentFlag.AlignCenter):
@@ -751,15 +751,21 @@ class AuthOverlay(QWidget):
             w.setStyleSheet(f"color: {color}; background: transparent;")
             return w
 
-        self._title_lbl = _lbl("◈  SIGN IN TO SONIC", 13, True)
+        # ── Logo / Brand ───────────────────────────────────────────
+        logo_lbl = _lbl("◈", 22, True, C.PRI)
+        logo_lbl.setStyleSheet(f"color: {C.PRI}; background: transparent; font-size: 22px;")
+        layout.addWidget(logo_lbl)
+        layout.addSpacing(2)
+
+        self._title_lbl = _lbl("SIGN IN TO SONIC", 14, True)
         layout.addWidget(self._title_lbl)
         self._subtitle_lbl = _lbl("Access your AI from any device.", 9, color=C.PRI_DIM)
         layout.addWidget(self._subtitle_lbl)
-        layout.addSpacing(4)
+        layout.addSpacing(6)
 
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"color: {C.BORDER};"); layout.addWidget(sep)
-        layout.addSpacing(4)
+        sep.setStyleSheet(f"color: {C.BORDER}; max-height: 1px;"); layout.addWidget(sep)
+        layout.addSpacing(6)
 
         # Email
         layout.addWidget(_lbl("EMAIL", 8, color=C.TEXT_DIM,
@@ -828,10 +834,11 @@ class AuthOverlay(QWidget):
         self._switch_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._switch_btn.setStyleSheet(f"""
             QPushButton {{
-                color: {C.PRI_DIM}; background: transparent; border: none; font-size: 9px;
+                color: {C.PRI_DIM}; background: transparent; border: none;
+                font-size: 9px; text-decoration: none;
             }}
             QPushButton:hover {{
-                color: {C.PRI};
+                color: {C.PRI}; text-decoration: underline;
             }}
         """)
         self._switch_btn.clicked.connect(self._toggle_mode)
@@ -841,10 +848,11 @@ class AuthOverlay(QWidget):
         self._forgot_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._forgot_btn.setStyleSheet(f"""
             QPushButton {{
-                color: {C.TEXT_DIM}; background: transparent; border: none; font-size: 9px;
+                color: {C.TEXT_DIM}; background: transparent; border: none;
+                font-size: 9px; text-decoration: none;
             }}
             QPushButton:hover {{
-                color: {C.PRI};
+                color: {C.PRI}; text-decoration: underline;
             }}
         """)
         self._forgot_btn.clicked.connect(lambda: self._set_mode("forgot"))
@@ -856,19 +864,26 @@ class AuthOverlay(QWidget):
         self._skip_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._skip_btn.setStyleSheet(f"""
             QPushButton {{
-                color: {C.TEXT_DIM}; background: transparent; border: none; font-size: 8px;
+                color: {C.TEXT_DIM}; background: transparent; border: none;
+                font-size: 8px; text-decoration: none;
             }}
             QPushButton:hover {{
-                color: {C.TEXT_MED};
+                color: {C.TEXT_MED}; text-decoration: underline;
             }}
         """)
         self._skip_btn.clicked.connect(self.skip.emit)
         layout.addWidget(self._skip_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
+        # Divider before Google
+        sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
+        sep2.setStyleSheet(f"color: {C.BORDER_DIM}; max-height: 1px;")
+        layout.addWidget(sep2)
+        layout.addSpacing(2)
+
         # Google Sign-In
         self._google_btn = QPushButton("▸  Continue with Google")
         self._google_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._google_btn.setFixedHeight(32)
+        self._google_btn.setFixedHeight(34)
         from auth import get_auth
         google_enabled = get_auth().is_google_configured()
         self._google_btn.setEnabled(google_enabled)
@@ -877,7 +892,7 @@ class AuthOverlay(QWidget):
         self._google_btn.setStyleSheet(f"""
             QPushButton {{
                 color: {C.TEXT}; background: {HU.FILL2}; border: 1px solid {C.BORDER};
-                border-radius: 4px; font-size: 9px; padding: 6px 12px;
+                border-radius: 5px; font-size: 9px; padding: 6px 12px;
             }}
             QPushButton:hover {{
                 border: 1px solid {C.PRI}; color: {C.PRI};
@@ -896,6 +911,7 @@ class AuthOverlay(QWidget):
 
         # Loading overlay
         self._loading_lbl = _lbl("Connecting...", 9, color=C.PRI)
+        self._loading_lbl.setStyleSheet(f"color: {C.PRI}; background: transparent; font-style: italic;")
         self._loading_lbl.setVisible(False)
         layout.addWidget(self._loading_lbl)
 
@@ -976,6 +992,7 @@ class AuthOverlay(QWidget):
     def _do_login(self, email: str, password: str):
         self._set_loading(True)
         self._action_btn.setText("  SIGNING IN...")
+        self._loading_lbl.setText("Authenticating...")
         def _run():
             try:
                 from auth import get_auth
@@ -1134,29 +1151,29 @@ class OnboardingWizard(QWidget):
             return w
 
         # Progress header
-        self._progress_lbl = _lbl("STEP 1 OF 4  ◈  ACCOUNT SETUP", 11, True)
+        self._progress_lbl = _lbl("STEP 1 OF 4    ○  ○  ○  ○", 10, True)
         layout.addWidget(self._progress_lbl)
 
-        self._step_desc = _lbl("Create your SONIC account to sync across devices", 9, color=C.PRI_DIM)
+        self._step_desc = _lbl("Account Setup — Create your SONIC account to sync across devices", 9, color=C.PRI_DIM)
         layout.addWidget(self._step_desc)
-        layout.addSpacing(4)
+        layout.addSpacing(6)
 
         # Progress bar
         self._progress_bar = QProgressBar()
         self._progress_bar.setRange(0, self._STEP_COUNT)
         self._progress_bar.setValue(1)
         self._progress_bar.setTextVisible(False)
-        self._progress_bar.setFixedHeight(4)
+        self._progress_bar.setFixedHeight(3)
         self._progress_bar.setStyleSheet(f"""
             QProgressBar {{
                 background: {HU.FILL2};
                 border: none;
-                border-radius: 2px;
+                border-radius: 1px;
             }}
             QProgressBar::chunk {{
                 background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
                     stop:0 {C.PRI_DIM}, stop:0.5 {C.PRI}, stop:1 {C.PRI_VIVID});
-                border-radius: 2px;
+                border-radius: 1px;
             }}
         """)
         layout.addWidget(self._progress_bar)
@@ -1202,10 +1219,11 @@ class OnboardingWizard(QWidget):
         self._skip_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._skip_btn.setStyleSheet(f"""
             QPushButton {{
-                color: {C.TEXT_DIM}; background: transparent; border: none; font-size: 8px;
+                color: {C.TEXT_DIM}; background: transparent; border: none;
+                font-size: 8px; text-decoration: none;
             }}
             QPushButton:hover {{
-                color: {C.TEXT_MED};
+                color: {C.TEXT_MED}; text-decoration: underline;
             }}
         """)
         self._skip_btn.clicked.connect(self._on_skip)
@@ -1652,24 +1670,21 @@ class OnboardingWizard(QWidget):
     def _update_step_ui(self):
         """Update UI for current step with smooth fade transition."""
         step_names = [
-            ("STEP 1 OF 4  \u25c8  ACCOUNT SETUP", "Create your SONIC account to sync across devices"),
-            ("STEP 2 OF 4  \u25c8  PERSONAL INFO", "Help SONIC address you properly"),
-            ("STEP 3 OF 4  \u25c8  API KEYS", "Add API keys for external services"),
-            ("STEP 4 OF 4  \u25c8  PREFERENCES", "Customize your SONIC experience"),
+            ("ACCOUNT SETUP", "Create your SONIC account to sync across devices"),
+            ("PERSONAL INFO", "Help SONIC address you properly"),
+            ("API KEYS", "Add API keys for external services"),
+            ("PREFERENCES", "Customize your SONIC experience"),
         ]
         title, desc = step_names[self._step]
-        self._progress_lbl.setText(title)
-        self._step_desc.setText(desc)
+        dots = "  ".join(["●" if i <= self._step else "○" for i in range(self._STEP_COUNT)])
+        self._progress_lbl.setText(f"STEP {self._step + 1} OF {self._STEP_COUNT}    {dots}")
+        self._step_desc.setText(f"{title} — {desc}")
         self._progress_bar.setValue(self._step + 1)
 
         # Fade transition between steps
-        from PyQt6.QtCore import QPropertyAnimation, QEasingCurve
         self._stack.setGraphicsEffect(None)
         self._stack.setCurrentIndex(self._step)
         self._back_btn.setVisible(self._step > 0)
-
-        # Slide animation for content
-        opacity_effect = self._stack.graphicsEffect()
 
         # Next/Finish button (hidden on step 0 which has its own action button)
         if self._step > 0:
@@ -3708,7 +3723,7 @@ class MainWindow(QMainWindow):
         # ── Update Section ────────────────────────────────────────────────
         from version import APP_VERSION
         ver_label = QLabel(f"SONIC v{APP_VERSION}")
-        ver_label.setStyleSheet("color: #00d4ff; font-size: 8px; font-weight: bold; background: transparent; border: none;")
+        ver_label.setStyleSheet(f"color: {C.PRI}; font-size: 8px; font-weight: bold; background: transparent; border: none;")
         ver_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(ver_label)
 
@@ -4654,8 +4669,26 @@ class MainWindow(QMainWindow):
             self.auth_completed.emit()
 
     def _on_onboarding_skipped(self):
-        """User skipped onboarding — show auth overlay."""
+        """User skipped onboarding — save any preferences set so far, show auth."""
         if self._onboarding_wizard:
+            # Save theme preference if user selected one
+            try:
+                data = self._onboarding_wizard._data
+                if "preferences" in data and "theme" in data["preferences"]:
+                    theme = data["preferences"]["theme"]
+                    from memory.config_manager import ensure_config_dir, CONFIG_FILE
+                    import json
+                    ensure_config_dir()
+                    cfg = {}
+                    if CONFIG_FILE.exists():
+                        try:
+                            cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+                        except Exception:
+                            cfg = {}
+                    cfg["theme"] = theme
+                    CONFIG_FILE.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
+            except Exception:
+                pass
             self._onboarding_wizard.hide()
             self._onboarding_wizard = None
         self._show_auth()

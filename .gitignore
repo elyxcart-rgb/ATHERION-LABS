@@ -33,3 +33,11 @@ desktop.ini
 
 # Logs
 *.log
+
+# Secrets & user data (never commit)
+config/api_keys.json
+auth/firebase_config.json
+auth/.local_users.json
+auth/.profile.json
+auth/.session.json
+auth/.onboarding_*.json
