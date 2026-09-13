@@ -12,9 +12,14 @@ class Verifier:
     def run_checks(cls, task: CodingTask) -> tuple[bool, list[str]]:
         errors: list[str] = []
         root = Path(task.project_root) if task.project_root else Path.cwd()
+
+        # Get Python files, excluding caches and venvs
         py_files = [f for f in root.rglob("*.py")
                     if "__pycache__" not in str(f)
-                    and ".venv" not in str(f)]
+                    and ".venv" not in str(f)
+                    and "node_modules" not in str(f)]
+
+        # Syntax check all Python files
         for f in py_files[:20]:
             try:
                 result = subprocess.run(
@@ -26,14 +31,10 @@ class Verifier:
                     errors.append(f"Syntax error in {f.name}: {result.stderr[:200]}")
             except Exception:
                 pass
-        tests_ran = False
-        test_patterns = ["test_", "tests/", "test/", "spec_"]
-        has_tests = any(
-            any(p in str(f).lower() for p in test_patterns)
-            for f in root.rglob("*.py")
-        )
-        if has_tests:
-            tests_ran = True
+
+        # Only run tests if there are actual test files (not just the code itself)
+        test_files = [f for f in py_files if f.name.startswith("test_")]
+        if test_files:
             for cmd in [
                 [sys.executable, "-m", "pytest", "--tb=short", "-q"],
                 [sys.executable, "-m", "unittest", "discover", "-s", "test", "-q"],
@@ -47,10 +48,14 @@ class Verifier:
                     if result.returncode == 0:
                         break
                     else:
-                        errors.append(f"Tests failed: {result.stdout[:300]}")
+                        # Only report as error if tests actually failed (not just "no tests found")
+                        output = result.stdout + result.stderr
+                        if "no tests ran" not in output.lower() and "no tests found" not in output.lower():
+                            errors.append(f"Tests failed: {output[:300]}")
                         break
                 except Exception:
                     continue
+
         return len(errors) == 0, errors
 
     @classmethod

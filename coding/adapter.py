@@ -175,8 +175,19 @@ class OpenCodeAdapter:
         parts.append(f"\nOUTPUT DIRECTORY: {task.project_root}")
         parts.append("All files must be saved in the OUTPUT DIRECTORY above.")
         parts.append("Do NOT save files in any other location.")
+        parts.append("Use modern best practices. Write clean, well-structured code.")
         if task.context_files:
-            parts.append(f"\nRelevant files in project: {', '.join(task.context_files[:10])}")
+            parts.append(f"\nRelevant files in project (read these to understand the codebase):")
+            for fname in task.context_files[:12]:
+                fpath = Path(task.project_root) / fname
+                try:
+                    content = fpath.read_text(encoding="utf-8", errors="replace")
+                    # Include first 3000 chars to give OpenCode context
+                    if len(content) > 3000:
+                        content = content[:3000] + "\n... (truncated)"
+                    parts.append(f"\n--- {fname} ---\n{content}\n--- end {fname} ---")
+                except Exception:
+                    parts.append(f"\n--- {fname} --- [could not read]\n--- end {fname} ---")
         parts.append(f"\nProject root: {task.project_root}")
         return "\n".join(parts)
 
