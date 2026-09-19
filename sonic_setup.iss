@@ -1,12 +1,12 @@
-; SONIC AI — Inno Setup Installer Script
+; SONIC Apex — Inno Setup Installer Script
 ; Build: "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" sonic_setup.iss
 
-#define MyAppName "SONIC AI"
-#define MyAppVersion "1.0.0"
-#define MyAppPublisher "SONIC AI"
+#define MyAppName "SONIC Apex"
+#define MyAppVersion "2.2.0"
+#define MyAppPublisher "Atherion Labs"
 #define MyAppExeName "SONIC-AI.exe"
 #define MyAppUpdaterExe "SONIC-Updater.exe"
-#define MyAppAssocName "SONIC AI File"
+#define MyAppAssocName "SONIC Apex File"
 #define MyAppAssocExt ".sonic"
 #define MyAppAssocKey StringChange(MyAppAssocName, " ", "") + MyAppAssocExt
 
@@ -37,7 +37,7 @@ VersionInfoVersion={#MyAppVersion}.0
 VersionInfoDescription={#MyAppName} Setup
 VersionInfoProductName={#MyAppName}
 VersionInfoProductVersion={#MyAppVersion}
-CloseApplications=force
+CloseApplications=no
 RestartApplications=no
 
 [Languages]
@@ -92,13 +92,19 @@ Type: filesandordirs; Name: "{localappdata}\SONIC AI\Updater"
 Type: filesandordirs; Name: "{localappdata}\SONIC AI\updates"
 
 [Code]
-// Auto-delete old version before installing new one
+// Kill running SONIC process before installing
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   OldExe: String;
+  ResultCode: Integer;
 begin
   if CurStep = ssInstall then
   begin
+    // Force kill SONIC processes before installing
+    Exec('taskkill', '/f /im SONIC-AI.exe', '', 0, ewNoWait, ResultCode);
+    Exec('taskkill', '/f /im SONIC-Updater.exe', '', 0, ewNoWait, ResultCode);
+    Sleep(1000);
+    
     // Delete old EXE if it exists
     OldExe := ExpandConstant('{app}\{#MyAppExeName}');
     if FileExists(OldExe) then
