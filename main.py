@@ -3633,7 +3633,7 @@ def main():
     # ── Create QApplication first ────────────────────────────────────────
     _app = QApplication.instance() or QApplication(sys.argv)
     _app.setStyle("Fusion")
-    _app.setApplicationName("SONIC AI")
+    _app.setApplicationName("SONIC Apex")
 
     # ── Bootstrap: first-run dependency check ─────────────────────────────
     try:
@@ -3668,7 +3668,7 @@ def main():
 
     _base = Path(__file__).resolve().parent
     _frame = QMainWindow()
-    _frame.setWindowTitle("SONIC AI")
+    _frame.setWindowTitle("SONIC Apex")
     _frame.setMinimumSize(1200, 800)
     _frame.resize(1400, 900)
     _frame.setStyleSheet("background: #080c14;")

@@ -80,7 +80,7 @@ class UpdatePopup(QDialog):
         self._setup_ui()
 
     def _setup_ui(self):
-        self.setWindowTitle("SONIC AI — Update")
+        self.setWindowTitle("SONIC Apex — Update")
         self.setFixedSize(460, 400)
         self.setWindowFlags(
             Qt.WindowType.Dialog
@@ -94,7 +94,7 @@ class UpdatePopup(QDialog):
         layout.setContentsMargins(28, 20, 28, 20)
 
         # SONIC branding
-        brand = QLabel("SONIC AI")
+        brand = QLabel("SONIC Apex")
         brand.setStyleSheet(f"color: {_CYAN}; font-size: 11px; font-weight: bold; letter-spacing: 4px; background: transparent; border: none;")
         brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(brand)
@@ -244,7 +244,7 @@ class DownloadProgressDialog(QDialog):
         self._setup_ui()
 
     def _setup_ui(self):
-        self.setWindowTitle("SONIC AI — Updating")
+        self.setWindowTitle("SONIC Apex — Updating")
         self.setFixedSize(440, 240)
         self.setWindowFlags(
             Qt.WindowType.Dialog
@@ -257,7 +257,7 @@ class DownloadProgressDialog(QDialog):
         layout.setContentsMargins(28, 24, 28, 24)
 
         # SONIC branding
-        brand = QLabel("SONIC AI")
+        brand = QLabel("SONIC Apex")
         brand.setStyleSheet(f"color: {_CYAN}; font-size: 10px; font-weight: bold; letter-spacing: 4px; background: transparent; border: none;")
         brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(brand)

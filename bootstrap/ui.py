@@ -454,7 +454,7 @@ class SonicBootUI(QWidget):
         self._core_state = CoreState.INITIALIZING
         self._cinematic_done = False
 
-        self.setWindowTitle("SONIC AI")
+        self.setWindowTitle("SONIC Apex")
         self.setMinimumSize(680, 560)
         self.setMaximumSize(680, 560)
         self.setStyleSheet("""
@@ -485,7 +485,7 @@ class SonicBootUI(QWidget):
         layout.addSpacing(5)
 
         # ── Title (hidden initially, revealed by cinematic) ─────────────
-        self._title = QLabel("SONIC AI")
+        self._title = QLabel("SONIC Apex")
         self._title.setFont(QFont("Segoe UI", 32, QFont.Weight.DemiBold))
         self._title.setStyleSheet("color: #d0d8e0; background: transparent; letter-spacing: 2px;")
         self._title.setAlignment(Qt.AlignmentFlag.AlignCenter)

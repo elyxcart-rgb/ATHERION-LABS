@@ -1,4 +1,4 @@
-"""SONIC AI — Single authoritative version declaration.
+"""SONIC Apex — Single authoritative version declaration.
 
 Every part of the application must import from here.
 Never hardcode version strings elsewhere.
@@ -7,14 +7,14 @@ The updater fetches release info from GitHub API — no hardcoded update URLs he
 from __future__ import annotations
 
 # ── Semantic version (major.minor.patch) ────────────────────────────────────
-APP_VERSION: str = "2.1.4"
+APP_VERSION: str = "2.2.0"
 
 # ── Build metadata (set by release.py) ──────────────────────────────────────
 BUILD_VERSION: str = "1.0.0+build.0"
 BUILD_DATE: str = "2026-09-19"
 
 # ── Application identity ────────────────────────────────────────────────────
-APP_NAME: str = "SONIC AI"
+APP_NAME: str = "SONIC Apex"
 APP_ID: str = "sonic-ai"
 APP_CHANNEL: str = "stable"  # stable | beta | dev
 

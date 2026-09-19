@@ -1,4 +1,4 @@
-## SONIC AI v2.1.4 — Volume & Brightness Absolute Control
+## SONIC Apex v2.1.4 — Volume & Brightness Absolute Control
 
 ### New Feature: Absolute Percentage Control
 

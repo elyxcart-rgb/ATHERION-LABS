@@ -1,9 +1,9 @@
-"""SONIC AI — Production Build Script.
+"""SONIC Apex — Production Build Script.
 
 Usage:
     python build.py
 
-Builds the SONIC AI desktop application as a Windows EXE.
+Builds the SONIC Apex desktop application as a Windows EXE.
 Output: dist/SONIC-AI/SONIC-AI.exe
 """
 from __future__ import annotations
@@ -76,7 +76,7 @@ def check_prerequisites() -> None:
 
 def build() -> None:
     """Run PyInstaller build."""
-    log("Building SONIC AI EXE...")
+    log("Building SONIC Apex EXE...")
     start = time.time()
 
     run([
@@ -254,7 +254,7 @@ def build_installer() -> None:
 
 
 def main() -> None:
-    log(f"{BOLD}SONIC AI — Production Build{RESET}")
+    log(f"{BOLD}SONIC Apex — Production Build{RESET}")
     log(f"Root: {ROOT}")
     log("")
 

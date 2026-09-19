@@ -332,7 +332,7 @@ class WelcomeStep(StepWidget):
     """Welcome / intro step."""
 
     def __init__(self, parent=None):
-        super().__init__("Welcome to SONIC AI", "Your intelligent desktop assistant", parent)
+        super().__init__("Welcome to SONIC Apex", "Your intelligent desktop assistant", parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 30, 40, 20)
         layout.setSpacing(16)
@@ -708,7 +708,7 @@ class DoneStep(StepWidget):
     """Completion step."""
 
     def __init__(self, parent=None):
-        super().__init__("Setup Complete!", "SONIC AI is ready to go", parent)
+        super().__init__("Setup Complete!", "SONIC Apex is ready to go", parent)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(40, 30, 40, 20)
         layout.setSpacing(16)
@@ -770,7 +770,7 @@ class ModernWizard(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("SONIC AI — Setup Wizard")
+        self.setWindowTitle("SONIC Apex — Setup Wizard")
         self.setFixedSize(680, 600)
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -814,7 +814,7 @@ class ModernWizard(QWidget):
             icon_lbl.setPixmap(pixmap)
         header.addWidget(icon_lbl)
 
-        title = QLabel("SONIC AI")
+        title = QLabel("SONIC Apex")
         title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         title.setStyleSheet(f"color: {C.PRI}; background: transparent;")
         header.addWidget(title)

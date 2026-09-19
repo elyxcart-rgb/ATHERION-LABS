@@ -1,4 +1,4 @@
-"""SONIC AI — Authentication Core (Security-Hardened).
+"""SONIC Apex — Authentication Core (Security-Hardened).
 
 ROOT CAUSE FIX: All auth data now stored in per-user AppData directory.
 The application package NEVER contains user sessions, passwords, or profiles.
@@ -20,7 +20,7 @@ from typing import Any
 logger = logging.getLogger("sonic.auth")
 
 # ── Per-user data directory (NEVER inside the app package) ──────────────
-_APP_NAME = "SONIC AI"
+_APP_NAME = "SONIC Apex"
 
 if sys.platform == "win32":
     _USER_DATA_ROOT = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
