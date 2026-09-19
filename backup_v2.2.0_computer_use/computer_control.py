@@ -310,15 +310,10 @@ def _focus_window(title: str) -> str:
 
     return f"focus_window: unknown OS '{os_name}'"
 
-def _screen_find(description: str) -> dict | None:
-    """AI element finder — returns bounding box with confidence.
-    
-    Returns dict with keys: x, y, width, height, confidence, element_type
-    Or None if not found.
-    """
+def _screen_find(description: str) -> tuple[int, int] | None:
     api_key = _get_api_key()
     if not api_key:
-        print("[ComputerControl] No API key for screen_find")
+        print("[ComputerControl] ⚠️ No API key for screen_find")
         return None
 
     try:
@@ -326,28 +321,22 @@ def _screen_find(description: str) -> dict | None:
         from google.genai import types as gtypes
 
         _require_pyautogui()
-        w, h = pyautogui.size()
-        img = pyautogui.screenshot()
-        buf = io.BytesIO()
+        w, h  = pyautogui.size()
+        img   = pyautogui.screenshot()
+        buf   = io.BytesIO()
         img.save(buf, format="PNG")
         image_bytes = buf.getvalue()
 
         client = genai.Client(api_key=api_key)
         prompt = (
-            f"This is a screenshot of a {w}x{h} pixel Windows screen. "
-            f"Find the UI element described as: '{description}'.\n\n"
-            f"Reply in this EXACT format (nothing else):\n"
-            f"x,y,width,height,confidence,element_type\n\n"
-            f"Where:\n"
-            f"- x,y = top-left corner coordinates (pixels)\n"
-            f"- width,height = element size in pixels\n"
-            f"- confidence = 0.0 to 1.0 (how sure you are)\n"
-            f"- element_type = button|input|link|text|icon|menu|checkbox|other\n\n"
-            f"If element is NOT visible, reply: NOT_FOUND"
+            f"This is a screenshot of a {w}×{h} pixel screen. "
+            f"Locate the UI element described as: '{description}'. "
+            f"Reply with ONLY the center coordinates as: x,y "
+            f"If the element is not visible, reply: NOT_FOUND"
         )
 
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-flash-lite-latest",
             contents=[
                 gtypes.Part.from_bytes(data=image_bytes, mime_type="image/png"),
                 prompt,
@@ -358,77 +347,14 @@ def _screen_find(description: str) -> dict | None:
         if "NOT_FOUND" in text.upper():
             return None
 
-        # Parse: x,y,width,height,confidence,element_type
-        parts = [p.strip() for p in text.split(",")]
-        if len(parts) >= 6:
-            x, y, w_elem, h_elem = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
-            conf = float(parts[4])
-            elem_type = parts[5]
-            # Click center of bounding box
-            cx = x + w_elem // 2
-            cy = y + h_elem // 2
-            return {
-                "x": cx, "y": cy,
-                "bbox_x": x, "bbox_y": y,
-                "width": w_elem, "height": h_elem,
-                "confidence": conf,
-                "element_type": elem_type,
-            }
-
-        # Fallback: try simple x,y format
         match = re.search(r"(\d+)\s*,\s*(\d+)", text)
         if match:
-            cx, cy = int(match.group(1)), int(match.group(2))
-            return {
-                "x": cx, "y": cy,
-                "bbox_x": cx - 25, "bbox_y": cy - 12,
-                "width": 50, "height": 24,
-                "confidence": 0.7,
-                "element_type": "unknown",
-            }
+            return int(match.group(1)), int(match.group(2))
 
     except Exception as e:
-        print(f"[ComputerControl] screen_find failed: {e}")
+        print(f"[ComputerControl] ⚠️ screen_find failed: {e}")
 
     return None
-
-
-def _smart_click(description: str, retries: int = 2) -> str:
-    """Find element by description and click with retry logic."""
-    for attempt in range(retries + 1):
-        result = _screen_find(description)
-        if result:
-            conf = result.get("confidence", 0)
-            cx, cy = result["x"], result["y"]
-            
-            # Verify coordinates are within screen bounds
-            screen_w, screen_h = pyautogui.size()
-            if 0 <= cx <= screen_w and 0 <= cy <= screen_h:
-                time.sleep(0.15)
-                _click(x=cx, y=cy)
-                return f"Clicked '{description}' at ({cx}, {cy}) [confidence: {conf:.0%}, type: {result.get('element_type', '?')}]"
-        
-        if attempt < retries:
-            time.sleep(0.5)  # Wait before retry
-    
-    return f"Could not find element after {retries + 1} attempts: '{description}'"
-
-
-def _type_into(description: str, text: str, clear_first: bool = True) -> str:
-    """Find input field by description and type text into it."""
-    result = _screen_find(description)
-    if not result:
-        return f"Input field not found: '{description}'"
-    
-    cx, cy = result["x"], result["y"]
-    _click(x=cx, y=cy)
-    time.sleep(0.2)
-    
-    if clear_first:
-        _clear_field()
-        time.sleep(0.1)
-    
-    return _smart_type(text, clear_first=False)
 
 def computer_control(
     parameters: dict,
@@ -437,16 +363,46 @@ def computer_control(
     session_memory=None,
 ) -> str:
     """
-    Dispatch table for all computer control actions — GPT-6 Astra level.
+    Dispatch table for all computer control actions.
+
+    parameters keys (all optional unless noted):
+      action        : (required) one of the actions listed below
+      text          : text to type or paste
+      x, y          : screen coordinates
+      button        : 'left' | 'right' (default: left)
+      keys          : hotkey string, e.g. 'ctrl+c'
+      key           : single key name, e.g. 'enter'
+      direction     : 'up' | 'down' | 'left' | 'right'
+      amount        : scroll amount (default: 3)
+      seconds       : wait duration
+      title         : window title fragment for focus_window
+      description   : natural-language element description for screen_find/click
+      type          : data type for random_data
+      field         : memory field name for user_data
+      clear_first   : bool, clear field before typing (default: true)
+      path          : save path for screenshot (must be inside home dir)
 
     Actions:
-      type, smart_type, click, double_click, right_click
-      smart_click  — AI find + click with retry (NEW)
-      type_into    — AI find input + type (NEW)
-      move, drag, hotkey, press, scroll
-      copy, paste, screenshot, wait, clear_field
-      focus_window, screen_find, screen_click
-      random_data, user_data
+      type          — type text at cursor
+      smart_type    — clear field + type (clipboard-backed)
+      click         — left click
+      double_click  — double left click
+      right_click   — right click
+      move          — move mouse
+      drag          — click-drag between two points
+      hotkey        — key combination
+      press         — single key
+      scroll        — scroll the wheel
+      copy          — read clipboard
+      paste         — write + paste clipboard
+      screenshot    — capture screen (safe path only)
+      wait          — sleep N seconds
+      clear_field   — select-all + delete
+      focus_window  — bring window to foreground
+      screen_find   — AI element finder (returns x,y)
+      screen_click  — AI element finder + click
+      random_data   — generate fake form data
+      user_data     — pull real data from memory
     """
     params = parameters or {}
     action = params.get("action", "").lower().strip()
@@ -478,17 +434,6 @@ def computer_control(
 
         if action == "right_click":
             return _click(params.get("x"), params.get("y"), "right", 1)
-
-        if action == "smart_click":
-            desc = params.get("description", "")
-            retries = int(params.get("retries", 2))
-            return _smart_click(desc, retries=retries)
-
-        if action == "type_into":
-            desc = params.get("description", "")
-            text = params.get("text", "")
-            clear = params.get("clear_first", True)
-            return _type_into(desc, text, clear_first=clear)
 
         if action == "move":
             return _move(int(params.get("x", 0)), int(params.get("y", 0)))
@@ -523,19 +468,17 @@ def computer_control(
             return _screenshot(params.get("path"))
 
         if action == "screen_find":
-            result = _screen_find(params.get("description", ""))
-            if result:
-                return f"Found at ({result['x']}, {result['y']}) [confidence: {result.get('confidence', 0):.0%}, type: {result.get('element_type', '?')}, size: {result.get('width', 0)}x{result.get('height', 0)}]"
-            return "NOT_FOUND"
+            coords = _screen_find(params.get("description", ""))
+            return f"{coords[0]},{coords[1]}" if coords else "NOT_FOUND"
 
         if action == "screen_click":
-            desc = params.get("description", "")
-            result = _screen_find(desc)
-            if result:
-                time.sleep(0.15)
-                _click(x=result["x"], y=result["y"])
-                return f"Clicked '{desc}' at ({result['x']}, {result['y']}) [confidence: {result.get('confidence', 0):.0%}]"
-            return f"Element not found: '{desc}'"
+            desc   = params.get("description", "")
+            coords = _screen_find(desc)
+            if coords:
+                time.sleep(0.2)
+                _click(x=coords[0], y=coords[1])
+                return f"Clicked '{desc}' at {coords}"
+            return f"Element not found on screen: '{desc}'"
 
         if action == "wait":
             secs = float(params.get("seconds", 1.0))

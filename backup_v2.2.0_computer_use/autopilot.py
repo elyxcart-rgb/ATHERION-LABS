@@ -135,80 +135,9 @@ class AutoPilot:
         return task
 
     def _parse_command(self, command: str) -> list[dict]:
-        """Parse natural language command into executable steps — Gemini-powered."""
+        """Parse natural language command into executable steps."""
         steps = []
         cmd_lower = command.lower()
-
-        # Try Gemini-powered parsing first for complex commands
-        gemini_steps = self._gemini_parse(command)
-        if gemini_steps:
-            return gemini_steps
-
-        # Fallback to regex-based parsing
-        return self._regex_parse(cmd_lower)
-
-    def _gemini_parse(self, command: str) -> list[dict]:
-        """Use Gemini to parse complex commands into steps."""
-        try:
-            import json as _json
-            config_path = Path(__file__).resolve().parent.parent / "config" / "api_keys.json"
-            api_key = ""
-            try:
-                cfg = _json.loads(config_path.read_text(encoding="utf-8"))
-                api_key = cfg.get("gemini_api_key", "")
-            except Exception:
-                return []
-
-            if not api_key:
-                return []
-
-            from google import genai
-            from google.genai import types as gtypes
-
-            client = genai.Client(api_key=api_key)
-            prompt = (
-                "You are a computer automation assistant. Parse this voice command into executable steps.\n"
-                "Available actions:\n"
-                "- open_app: {\"action\": \"open_app\", \"app\": \"name\"}\n"
-                "- open_url: {\"action\": \"open_url\", \"url\": \"https://...\"}\n"
-                "- screenshot: {\"action\": \"screenshot\"}\n"
-                "- click: {\"action\": \"click\", \"description\": \"element to click\"}\n"
-                "- smart_click: {\"action\": \"smart_click\", \"description\": \"element to click\"}\n"
-                "- type: {\"action\": \"type\", \"text\": \"text to type\"}\n"
-                "- type_into: {\"action\": \"type_into\", \"description\": \"field\", \"text\": \"text\"}\n"
-                "- copy: {\"action\": \"copy\"}\n"
-                "- paste: {\"action\": \"paste\"}\n"
-                "- close_app: {\"action\": \"close_app\", \"app\": \"name\"}\n"
-                "- search: {\"action\": \"search\", \"query\": \"search terms\"}\n"
-                "- scroll: {\"action\": \"scroll\", \"direction\": \"up|down\"}\n"
-                "- hotkey: {\"action\": \"hotkey\", \"keys\": \"ctrl+c\"}\n"
-                "- wait: {\"action\": \"wait\", \"seconds\": 2}\n\n"
-                "Command: " + command + "\n\n"
-                "Reply with ONLY a JSON array of steps. No explanation."
-            )
-
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=[prompt],
-            )
-
-            text = (response.text or "").strip()
-            # Extract JSON array from response
-            import re
-            json_match = re.search(r'\[.*\]', text, re.DOTALL)
-            if json_match:
-                parsed = _json.loads(json_match.group())
-                if isinstance(parsed, list) and len(parsed) > 0:
-                    return parsed
-
-        except Exception as e:
-            print(f"[Autopilot] Gemini parse failed, using regex: {e}")
-
-        return []
-
-    def _regex_parse(self, cmd_lower: str) -> list[dict]:
-        """Fallback regex-based command parsing."""
-        steps = []
 
         # Open application
         if "open" in cmd_lower or "launch" in cmd_lower or "start" in cmd_lower:
@@ -229,7 +158,7 @@ class AutoPilot:
         # Click
         if "click" in cmd_lower:
             target = self._extract_click_target(cmd_lower)
-            steps.append({"action": "smart_click", "description": target})
+            steps.append({"action": "click", "target": target})
 
         # Type text
         if "type" in cmd_lower or "write" in cmd_lower:
@@ -259,6 +188,10 @@ class AutoPilot:
         if "scroll" in cmd_lower:
             direction = "down" if "down" in cmd_lower else "up"
             steps.append({"action": "scroll", "direction": direction})
+
+        # If no steps parsed, treat as AI task
+        if not steps:
+            steps.append({"action": "ai_task", "command": command})
 
         return steps
 
@@ -335,7 +268,7 @@ class AutoPilot:
         return match.group(1).strip() if match else ""
 
     async def _execute_step(self, step: dict) -> dict:
-        """Execute a single step — GPT-6 Astra level with smart actions."""
+        """Execute a single step."""
         action = step.get("action", "")
 
         try:
@@ -348,15 +281,9 @@ class AutoPilot:
             elif action == "screenshot":
                 return await self._take_screenshot()
             elif action == "click":
-                return await self._click_element(step.get("target", ""))
-            elif action == "smart_click":
-                return await self._smart_click_element(step.get("description", ""))
+                return await self._click_element(step["target"])
             elif action == "type":
                 return await self._type_text(step["text"])
-            elif action == "type_into":
-                return await self._type_into_field(
-                    step.get("description", ""), step.get("text", "")
-                )
             elif action == "copy":
                 return await self._copy()
             elif action == "paste":
@@ -364,11 +291,9 @@ class AutoPilot:
             elif action == "search":
                 return await self._search(step["query"])
             elif action == "scroll":
-                return await self._scroll(step.get("direction", "down"))
-            elif action == "hotkey":
-                return await self._hotkey(step.get("keys", ""))
-            elif action == "wait":
-                return await self._wait(step.get("seconds", 1))
+                return await self._scroll(step["direction"])
+            elif action == "ai_task":
+                return await self._ai_task(step["command"])
             else:
                 return {"success": False, "error": f"Unknown action: {action}"}
         except Exception as e:
@@ -420,59 +345,24 @@ class AutoPilot:
             return {"success": False, "error": str(e)}
 
     async def _click_element(self, target: str) -> dict:
-        """Click on a UI element using AI vision."""
+        """Click on a UI element (simplified - uses pyautogui)."""
         try:
             import pyautogui
-            # Import from computer_control for AI-powered click
-            sys.path.insert(0, str(Path(__file__).resolve().parent))
-            from computer_control import _smart_click
-            result = _smart_click(target, retries=2)
-            logger.info("[AUTOPILOT] Smart click: %s", result)
-            return {"success": True, "message": result}
-        except Exception as e:
-            # Fallback: click center of screen
-            try:
-                import pyautogui
-                screen_width, screen_height = pyautogui.size()
-                pyautogui.click(screen_width // 2, screen_height // 2)
-                return {"success": True, "message": f"Clicked center (fallback) for: {target}"}
-            except Exception:
-                return {"success": False, "error": str(e)}
-
-    async def _smart_click_element(self, description: str) -> dict:
-        """AI-powered element click with retry."""
-        try:
-            import sys
-            sys.path.insert(0, str(Path(__file__).resolve().parent))
-            from computer_control import _smart_click
-            result = _smart_click(description, retries=2)
-            logger.info("[AUTOPILOT] Smart click: %s", result)
-            return {"success": True, "message": result}
+            # For now, click at center of screen
+            screen_width, screen_height = pyautogui.size()
+            pyautogui.click(screen_width // 2, screen_height // 2)
+            logger.info("[AUTOPILOT] Clicked: %s", target)
+            return {"success": True, "message": f"Clicked {target}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
     async def _type_text(self, text: str) -> dict:
-        """Type text using clipboard (supports Unicode)."""
+        """Type text using keyboard."""
         try:
             import pyautogui
-            import pyperclip
-            pyperclip.copy(text)
-            time.sleep(0.1)
-            pyautogui.hotkey("ctrl", "v")
+            pyautogui.typewrite(text, interval=0.05)
             logger.info("[AUTOPILOT] Typed: %s", text[:50])
             return {"success": True, "message": f"Typed: {text[:50]}"}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    async def _type_into_field(self, description: str, text: str) -> dict:
-        """Find input field and type text into it."""
-        try:
-            import sys
-            sys.path.insert(0, str(Path(__file__).resolve().parent))
-            from computer_control import _type_into
-            result = _type_into(description, text, clear_first=True)
-            logger.info("[AUTOPILOT] Type into: %s", result)
-            return {"success": True, "message": result}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -515,20 +405,10 @@ class AutoPilot:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
-    async def _hotkey(self, keys: str) -> dict:
-        """Press a hotkey combination (e.g., 'ctrl+c')."""
-        try:
-            import pyautogui
-            key_list = [k.strip() for k in keys.split("+")]
-            pyautogui.hotkey(*key_list)
-            return {"success": True, "message": f"Pressed: {keys}"}
-        except Exception as e:
-            return {"success": False, "error": str(e)}
-
-    async def _wait(self, seconds: float) -> dict:
-        """Wait for specified seconds."""
-        time.sleep(min(seconds, 30))
-        return {"success": True, "message": f"Waited {seconds}s"}
+    async def _ai_task(self, command: str) -> dict:
+        """Handle complex AI tasks."""
+        # This would integrate with the main AI model
+        return {"success": True, "message": f"AI processing: {command}"}
 
     def get_status(self) -> dict:
         """Get Auto-Pilot status."""
