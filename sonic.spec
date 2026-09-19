@@ -12,15 +12,15 @@ import os
 
 block_cipher = None
 
+# SECURITY: Only bundle non-sensitive resources.
+# auth/ directory is NEVER bundled — user data, sessions, and secrets
+# must be created at runtime in the user's AppData directory.
+# config/api_keys.json is NOT bundled — user provides API keys at runtime.
 datas = [
-    ("config", "config"),
-    ("auth", "auth"),
-    ("core", "core"),
-    ("sonic-frontend-theme", "sonic-frontend-theme"),
-    ("updater", "updater"),
-    ("bootstrap", "bootstrap"),
-    ("version.py", "."),
     ("config/sonic.ico", "config"),
+    ("core/prompt.txt", "core"),
+    ("version.py", "."),
+    ("sonic-frontend-theme/pyqt6_theme", "pyqt6_theme"),
 ]
 
 hiddenimports = [

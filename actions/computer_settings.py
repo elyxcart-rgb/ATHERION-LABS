@@ -600,6 +600,7 @@ ACTION_MAP: dict[str, callable] = {
     "toggle_mute":         volume_mute,
     "brightness_up":       brightness_up,
     "brightness_down":     brightness_down,
+    "brightness_set":      brightness_set,
     "sleep_display":       sleep_display,
     "screen_off":          sleep_display,
     "pause_video":         pause_video,
@@ -720,7 +721,7 @@ _ALIASES = {
     "restart":         ("reboot", "restart the pc"),
 }
 
-_VALUE_ACTIONS = {"volume_set", "type_text", "press_key", "reload_n",
+_VALUE_ACTIONS = {"volume_set", "brightness_set", "type_text", "press_key", "reload_n",
                   "scroll_up", "scroll_down"}
 
 
@@ -747,10 +748,39 @@ def _detect_action(description: str) -> dict:
 
     low = raw.lower()
 
-    # 2. "set volume to 30", "sesi 30 yap" — a number next to a volume word.
+    # 2a. "volume up 10%" or "brightness down 10%" — relative with delta (check BEFORE absolute)
+    rel_match = re.search(r"(up|down|increase|decrease|badha|ghata)\s*(\d{1,3})\s*%?", low)
+    if rel_match:
+        delta = int(rel_match.group(2))
+        direction = rel_match.group(1)
+        is_down = direction in ("down", "decrease", "ghata")
+        if any(w in low for w in ("volume", "ses", "sound", "awaz")):
+            return {"action": "volume_down" if is_down else "volume_up", "value": delta}
+        if any(w in low for w in ("brightness", "roshni")):
+            return {"action": "brightness_down" if is_down else "brightness_up", "value": delta}
+
+    # 2b. "set volume to 30", "volume 100%", "brightness 50" — number next to device word.
     num = re.search(r"(\d{1,3})\s*%?", low)
-    if num and any(w in low for w in ("volume", "ses", "sound", "lautstark", "громкость")):
-        return {"action": "volume_set", "value": max(0, min(100, int(num.group(1))))}
+    if num:
+        val = max(0, min(100, int(num.group(1))))
+        if any(w in low for w in ("volume", "ses", "sound", "lautstark", "громкость", "awaz")):
+            return {"action": "volume_set", "value": val}
+        if any(w in low for w in ("brightness", "roshni", "screen brightness", "display brightness")):
+            return {"action": "brightness_set", "value": val}
+
+    # 2c. Natural language: "full volume", "half brightness", "maximum", "minimum"
+    if any(w in low for w in ("full volume", "full sound", "maximum volume", "poori awaz")):
+        return {"action": "volume_set", "value": 100}
+    if any(w in low for w in ("half volume", "aadhi awaz")):
+        return {"action": "volume_set", "value": 50}
+    if any(w in low for w in ("minimum volume", "最低音量")):
+        return {"action": "volume_set", "value": 0}
+    if any(w in low for w in ("full brightness", "maximum brightness", "full screen brightness")):
+        return {"action": "brightness_set", "value": 100}
+    if any(w in low for w in ("half brightness", "aadhi roshni")):
+        return {"action": "brightness_set", "value": 50}
+    if any(w in low for w in ("minimum brightness", "dim brightness")):
+        return {"action": "brightness_set", "value": 0}
 
     # 3. Alias phrases.
     for action, phrases in _ALIASES.items():
@@ -833,12 +863,30 @@ def computer_settings(
             target = int(value if value is not None else 50)
             before = volume_get()
             volume_set(target)
+            actual = volume_get()
             if before is not None:
                 push_undo(f"volume {before}% → {target}%",
                           lambda b=before: (volume_set(b), f"Back to {b}%.")[1])
+            if actual is not None:
+                return f"Volume set to {actual}% (target: {target}%)."
             return f"Volume set to {target}%."
         except Exception as e:
             return f"Could not set volume: {e}"
+
+    if action == "brightness_set":
+        try:
+            target = int(value if value is not None else 50)
+            before = brightness_get()
+            brightness_set(target)
+            actual = brightness_get()
+            if before is not None:
+                push_undo(f"brightness {before}% → {target}%",
+                          lambda b=before: (brightness_set(b), f"Back to {b}%.")[1])
+            if actual is not None:
+                return f"Brightness set to {actual}% (target: {target}%)."
+            return f"Brightness set to {target}%."
+        except Exception as e:
+            return f"Could not set brightness: {e}"
 
     if action in ("type_text", "write_on_screen", "type", "write"):
         text = str(value or params.get("text", "")).strip()
@@ -875,18 +923,40 @@ def computer_settings(
         return _suggest(raw_action or description)
 
     # ── Capture "before" so the change can be taken back ─────────────────────
-    # Read-then-write is the whole mechanism for settings: there is no clever
-    # inverse to compute, just a value to remember. Where the platform will not
-    # tell us the current value, nothing is registered — an undo that restores
-    # a guess is worse than no undo at all.
     _before = None
     if action in ("volume_up", "volume_down", "mute", "unmute", "toggle_mute"):
         _before = ("volume", volume_get())
     elif action in ("brightness_up", "brightness_down"):
         _before = ("brightness", brightness_get())
 
+    # ── Execute with delta support for up/down ──────────────────────────────
     try:
-        func()
+        if action in ("volume_up", "volume_down") and value:
+            delta = int(value)
+            current = volume_get() or 50
+            if action == "volume_up":
+                volume_set(current + delta)
+            else:
+                volume_set(current - delta)
+            after = volume_get()
+            if _before and _before[1] is not None:
+                push_undo(f"volume ({action} {delta}%)",
+                          lambda b=_before[1]: (volume_set(b), f"Volume back to {b}%.")[1])
+            return f"Volume {'increased' if action == 'volume_up' else 'decreased'} to {after}%."
+        elif action in ("brightness_up", "brightness_down") and value:
+            delta = int(value)
+            current = brightness_get() or 50
+            if action == "brightness_up":
+                brightness_set(current + delta)
+            else:
+                brightness_set(current - delta)
+            after = brightness_get()
+            if _before and _before[1] is not None:
+                push_undo(f"brightness ({action} {delta}%)",
+                          lambda b=_before[1]: (brightness_set(b), f"Brightness back to {b}%.")[1])
+            return f"Brightness {'increased' if action == 'brightness_up' else 'decreased'} to {after}%."
+        else:
+            func()
     except Exception as e:
         print(f"[Settings] Action failed ({action}): {e}")
         return f"Action failed ({action}): {e}"
@@ -901,7 +971,6 @@ def computer_settings(
                 push_undo(f"brightness ({action})",
                           lambda b=old: (brightness_set(b), f"Brightness back to {b}%.")[1])
     elif action == "dark_mode":
-        # A pure toggle: calling it again is the undo.
         push_undo("dark mode toggled",
                   lambda: (dark_mode(), "Theme switched back.")[1])
 

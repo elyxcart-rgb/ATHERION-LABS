@@ -106,15 +106,44 @@ def verify() -> None:
     log(f"Output: {exe}", GREEN)
     log(f"Size: {size_mb:.1f} MB", GREEN)
 
-    # Check critical files are bundled
+    # SECURITY: Verify NO sensitive files are bundled
     data_dir = DIST / "SONIC-AI"
-    required = ["config/sonic.ico", "config/api_keys.json", "core/prompt.txt"]
+    forbidden = [
+        "auth/.session.json",
+        "auth/.profile.json",
+        "auth/.local_users.json",
+        "auth/.onboarding_*.json",
+        "auth/.google_credentials.json",
+        "config/api_keys.json",
+    ]
+    security_clean = True
+    for pattern in forbidden:
+        if "*" in pattern:
+            matches = list(data_dir.glob(pattern))
+            for m in matches:
+                log(f"  SECURITY VIOLATION: {m.name} must NOT be in build!", RED)
+                security_clean = False
+        else:
+            p = data_dir / pattern
+            if p.exists():
+                log(f"  SECURITY VIOLATION: {pattern} must NOT be in build!", RED)
+                security_clean = False
+
+    if not security_clean:
+        log("BUILD FAILED: Sensitive files detected in build output!", RED)
+        log("Remove these files and rebuild.", RED)
+        sys.exit(1)
+
+    # Check required files
+    required = ["config/sonic.ico", "core/prompt.txt", "version.py"]
     for r in required:
         p = data_dir / r
         if p.exists():
             log(f"  OK: {r}")
         else:
             log(f"  MISSING: {r}", RED)
+
+    log("  Security check PASSED — no sensitive data in build", GREEN)
 
 
 def build_updater() -> None:

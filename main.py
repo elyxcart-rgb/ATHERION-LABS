@@ -379,7 +379,7 @@ TOOL_DECLARATIONS = [
                     "description": (
                         "The exact action. Prefer this over `description` — pick one of: "
                         "volume_up | volume_down | volume_set | mute | "
-                        "brightness_up | brightness_down | sleep_display | "
+                        "brightness_up | brightness_down | brightness_set | sleep_display | "
                         "pause_video | close_app | close_window | full_screen | "
                         "minimize | maximize | snap_left | snap_right | "
                         "switch_window | show_desktop | task_manager | focus_search | "
@@ -1161,6 +1161,370 @@ TOOL_DECLARATIONS = [
                 "category": {"type": "STRING", "description": "Category"},
                 "amount": {"type": "NUMBER", "description": "Amount (for finance)"},
                 "description": {"type": "STRING", "description": "Description"},
+            },
+            "required": ["action"],
+        },
+    },
+    # ── Autonomous Task Planner ─────────────────────────────────────────
+    {
+        "name": "task_planner",
+        "description": (
+            "Autonomous task planner for complex multi-step tasks. "
+            "Creates, manages, and executes task plans with multiple steps. "
+            "Use when the user asks for multiple things at once or complex workflows. "
+            "Each step calls a different tool. Steps execute sequentially with result passing."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": (
+                        "plan | next | start | complete | fail | status | history"
+                    ),
+                },
+                "goal": {"type": "STRING", "description": "The overall goal of the task plan"},
+                "steps": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "tool_name": {"type": "STRING"},
+                            "parameters": {"type": "OBJECT"},
+                            "description": {"type": "STRING"},
+                            "depends_on": {"type": "ARRAY", "items": {"type": "INTEGER"}},
+                        },
+                    },
+                    "description": "Array of step objects (for plan action)",
+                },
+                "task_id": {"type": "STRING", "description": "Task ID (for start/complete/fail/status)"},
+                "step_id": {"type": "INTEGER", "description": "Step ID (for start/complete/fail)"},
+                "result": {"type": "STRING", "description": "Step result (for complete action)"},
+                "error": {"type": "STRING", "description": "Error message (for fail action)"},
+                "limit": {"type": "INTEGER", "description": "History limit (for history action)"},
+            },
+            "required": ["action"],
+        },
+    },
+    # ── Tool Chaining Engine ─────────────────────────────────────────────
+    {
+        "name": "tool_chain",
+        "description": (
+            "Chains multiple tool calls together in a single flow. "
+            "Result of Tool A becomes input of Tool B automatically. "
+            "Use when tasks have dependencies (e.g., search → download → organize). "
+            "Steps execute sequentially with automatic result passing."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "create | execute | status | list",
+                },
+                "description": {"type": "STRING", "description": "Description of the chain"},
+                "steps": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "tool_name": {"type": "STRING"},
+                            "parameters": {"type": "OBJECT"},
+                            "description": {"type": "STRING"},
+                            "output_key": {"type": "STRING"},
+                        },
+                    },
+                    "description": "Array of step objects (for create action)",
+                },
+                "chain_id": {"type": "STRING", "description": "Chain ID (for execute/status)"},
+            },
+            "required": ["action"],
+        },
+    },
+    # ── File Download Manager ────────────────────────────────────────────
+    {
+        "name": "file_download",
+        "description": (
+            "Downloads files from URLs with progress tracking and auto-organization. "
+            "Supports any file type. Auto-organizes downloads into folders by type "
+            "(images, videos, audio, documents, archives, code). "
+            "Safe: only downloads to ~/Downloads, ~/Documents, ~/Desktop, ~/Pictures."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "download | status | list | cancel",
+                },
+                "url": {"type": "STRING", "description": "URL to download from"},
+                "destination": {"type": "STRING", "description": "Destination directory (default: ~/Downloads)"},
+                "filename": {"type": "STRING", "description": "Override filename (default: auto-detect)"},
+                "organize": {"type": "BOOLEAN", "description": "Auto-organize by file type (default: true)"},
+                "task_id": {"type": "STRING", "description": "Task ID (for status/cancel)"},
+            },
+            "required": ["action"],
+        },
+    },
+    # ── GitHub Integration ──────────────────────────────────────────────
+    {
+        "name": "github_api",
+        "description": (
+            "Full GitHub integration via gh CLI. "
+            "View/create/manage repos, issues, pull requests, commits, releases. "
+            "Search code, issues, repos. View notifications. "
+            "Requires: gh CLI installed and authenticated (gh auth login)."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": (
+                        "repos | repo_view | repo_create | issues | issue_view | issue_create | "
+                        "issue_close | issue_comment | prs | pr_view | pr_merge | commits | "
+                        "search_repos | search_issues | search_code | notifications | releases"
+                    ),
+                },
+                "repo": {"type": "STRING", "description": "Repository (owner/repo format)"},
+                "issue_number": {"type": "INTEGER", "description": "Issue number"},
+                "pr_number": {"type": "INTEGER", "description": "Pull request number"},
+                "title": {"type": "STRING", "description": "Title (for create)"},
+                "body": {"type": "STRING", "description": "Body/description"},
+                "comment": {"type": "STRING", "description": "Comment text"},
+                "labels": {"type": "ARRAY", "items": {"type": "STRING"}, "description": "Labels"},
+                "query": {"type": "STRING", "description": "Search query"},
+                "limit": {"type": "INTEGER", "description": "Result limit (default: 10)"},
+                "name": {"type": "STRING", "description": "Repo name (for repo_create)"},
+                "description": {"type": "STRING", "description": "Description (for repo_create)"},
+                "private": {"type": "BOOLEAN", "description": "Private repo (for repo_create)"},
+            },
+            "required": ["action"],
+        },
+    },
+    # ── Twitter/X Integration ───────────────────────────────────────────
+    {
+        "name": "twitter_api",
+        "description": (
+            "Full Twitter/X integration. "
+            "Post tweets, search, view timeline, like, retweet, reply. "
+            "View trending topics, user profiles, mentions. "
+            "Requires: Twitter API credentials in config/api_keys.json."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": (
+                        "setup | tweet | reply | delete | search | timeline | mentions | "
+                        "like | retweet | trending | profile"
+                    ),
+                },
+                "text": {"type": "STRING", "description": "Tweet text"},
+                "tweet_id": {"type": "STRING", "description": "Tweet ID (for reply/like/retweet/delete)"},
+                "query": {"type": "STRING", "description": "Search query"},
+                "username": {"type": "STRING", "description": "Twitter username (for profile)"},
+                "limit": {"type": "INTEGER", "description": "Result limit (default: 10)"},
+                "api_key": {"type": "STRING", "description": "Twitter API key (for setup)"},
+                "api_secret": {"type": "STRING", "description": "Twitter API secret (for setup)"},
+                "access_token": {"type": "STRING", "description": "Twitter access token (for setup)"},
+                "access_secret": {"type": "STRING", "description": "Twitter access secret (for setup)"},
+                "bearer_token": {"type": "STRING", "description": "Twitter bearer token (for setup)"},
+            },
+            "required": ["action"],
+        },
+    },
+    # ── Email Integration ───────────────────────────────────────────────
+    {
+        "name": "email_api",
+        "description": (
+            "Full email integration via IMAP/SMTP. "
+            "Read inbox, send emails, search, star, delete. "
+            "Supports Gmail, Outlook, Yahoo, etc. "
+            "Requires: Email credentials in config/api_keys.json."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "setup | inbox | read | search | send | star | delete | unread",
+                },
+                "to": {"type": "STRING", "description": "Recipient email (for send)"},
+                "subject": {"type": "STRING", "description": "Email subject (for send)"},
+                "body": {"type": "STRING", "description": "Email body (for send)"},
+                "cc": {"type": "STRING", "description": "CC recipients"},
+                "msg_id": {"type": "STRING", "description": "Message ID (for read/star/delete/unread)"},
+                "query": {"type": "STRING", "description": "Search query (for search)"},
+                "limit": {"type": "INTEGER", "description": "Result limit (default: 10)"},
+                "unread_only": {"type": "BOOLEAN", "description": "Show only unread (for inbox)"},
+                "address": {"type": "STRING", "description": "Email address (for setup)"},
+                "password": {"type": "STRING", "description": "App password (for setup)"},
+                "imap_server": {"type": "STRING", "description": "IMAP server (for setup)"},
+                "smtp_server": {"type": "STRING", "description": "SMTP server (for setup)"},
+            },
+            "required": ["action"],
+        },
+    },
+    # ── Setup Wizard ────────────────────────────────────────────────────
+    {
+        "name": "setup_wizard",
+        "description": (
+            "Interactive setup wizard for external services. "
+            "Guides users through configuring GitHub, Twitter, Email. "
+            "Use when user asks to setup, configure, or connect services."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "status | guide | save_twitter | save_email | check",
+                },
+                "service": {"type": "STRING", "description": "Service name: github, twitter, email"},
+                "api_key": {"type": "STRING", "description": "Twitter API key"},
+                "api_secret": {"type": "STRING", "description": "Twitter API secret"},
+                "access_token": {"type": "STRING", "description": "Twitter access token"},
+                "access_secret": {"type": "STRING", "description": "Twitter access secret"},
+                "bearer_token": {"type": "STRING", "description": "Twitter bearer token"},
+                "address": {"type": "STRING", "description": "Email address"},
+                "password": {"type": "STRING", "description": "Email app password"},
+                "imap_server": {"type": "STRING", "description": "IMAP server"},
+                "smtp_server": {"type": "STRING", "description": "SMTP server"},
+            },
+            "required": ["action"],
+        },
+    },
+    # ── Behavior Analytics ──────────────────────────────────────────────
+    {
+        "name": "behavior_analytics",
+        "description": (
+            "Tracks and analyzes user behavior patterns. "
+            "Productivity scoring, habit tracking, goal progress, "
+            "activity logging, weekly reports."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": (
+                        "log | productivity | habits | add_habit | complete_habit | "
+                        "goals | add_goal | update_goal | weekly_report | activities"
+                    ),
+                },
+                "category": {"type": "STRING", "description": "Activity category: coding, browsing, gaming, working, learning, social, creative, system"},
+                "action_type": {"type": "STRING", "description": "Action type: start, stop, pause, resume, switch"},
+                "details": {"type": "STRING", "description": "Activity details"},
+                "duration": {"type": "INTEGER", "description": "Duration in seconds"},
+                "hours": {"type": "INTEGER", "description": "Time range in hours (default: 24)"},
+                "name": {"type": "STRING", "description": "Habit/goal name"},
+                "habit_id": {"type": "STRING", "description": "Habit ID (for complete_habit)"},
+                "goal_id": {"type": "STRING", "description": "Goal ID (for update_goal)"},
+                "progress": {"type": "INTEGER", "description": "Goal progress 0-100 (for update_goal)"},
+                "deadline": {"type": "STRING", "description": "Deadline date (for add_goal)"},
+            },
+            "required": ["action"],
+        },
+    },
+    # ── Pattern Recognition ─────────────────────────────────────────────
+    {
+        "name": "pattern_recognition",
+        "description": (
+            "Detects and analyzes user behavior patterns. "
+            "Daily routines, topic patterns, mood patterns, "
+            "activity patterns, predictive suggestions."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "routine | topics | mood | activities | suggest | full_report",
+                },
+                "user_id": {"type": "STRING", "description": "User ID (optional)"},
+                "days": {"type": "INTEGER", "description": "Days to analyze (default: 30)"},
+            },
+            "required": ["action"],
+        },
+    },
+    # ── Semantic Search ──────────────────────────────────────────────────
+    {
+        "name": "semantic_search",
+        "description": (
+            "Advanced semantic search across all memories. "
+            "Understands meaning, not just keywords. "
+            "Returns ranked results with similarity scores."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "query": {"type": "STRING", "description": "Search query"},
+                "limit": {"type": "INTEGER", "description": "Max results (default: 10)"},
+                "user_id": {"type": "STRING", "description": "User ID (optional)"},
+            },
+            "required": ["query"],
+        },
+    },
+    # ── Advanced Vision System ──────────────────────────────────────────
+    {
+        "name": "advanced_vision",
+        "description": (
+            "Advanced screen understanding with OCR, UI element detection, "
+            "screen analysis, and continuous monitoring. "
+            "Can read text from screen, find buttons, analyze content."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": (
+                        "ocr | ocr_region | detect_elements | find_element | "
+                        "analyze | describe | start_monitor | stop_monitor | "
+                        "monitor_status | list_monitors | capture_monitor"
+                    ),
+                },
+                "question": {"type": "STRING", "description": "Question for screen analysis"},
+                "description": {"type": "STRING", "description": "Element description (for find_element)"},
+                "region": {"type": "OBJECT", "description": "Screen region: {x, y, width, height}"},
+                "x": {"type": "INTEGER", "description": "X coordinate"},
+                "y": {"type": "INTEGER", "description": "Y coordinate"},
+                "width": {"type": "INTEGER", "description": "Width"},
+                "height": {"type": "INTEGER", "description": "Height"},
+                "interval": {"type": "INTEGER", "description": "Monitor interval in seconds"},
+                "index": {"type": "INTEGER", "description": "Monitor index"},
+            },
+            "required": ["action"],
+        },
+    },
+    # ── Self-Improvement Engine ─────────────────────────────────────────
+    {
+        "name": "self_improve",
+        "description": (
+            "Self-improvement engine that learns from interactions. "
+            "Tracks tool usage, logs corrections, monitors performance, "
+            "and generates improvement reports."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": (
+                        "report | tool_stats | log_correction | corrections | "
+                        "performance | log_metric | patterns"
+                    ),
+                },
+                "tool": {"type": "STRING", "description": "Tool name (for tool_stats)"},
+                "original": {"type": "STRING", "description": "Original action (for log_correction)"},
+                "corrected": {"type": "STRING", "description": "Corrected action (for log_correction)"},
+                "context": {"type": "STRING", "description": "Context"},
+                "metric": {"type": "STRING", "description": "Metric name"},
+                "value": {"type": "NUMBER", "description": "Metric value"},
+                "limit": {"type": "INTEGER", "description": "Result limit"},
+                "type": {"type": "STRING", "description": "Pattern type filter"},
             },
             "required": ["action"],
         },
@@ -2112,6 +2476,123 @@ class SonicLive:
 
                 else:
                     result = f"Unknown dashboard action: {action}"
+
+            # ── Autonomous Task Planner ──────────────────────────────────
+            elif name == "task_planner":
+                from actions.task_planner import task_planner
+                r = await loop.run_in_executor(
+                    self._tool_executor,
+                    lambda: task_planner(args, player=self.ui, session_memory=None),
+                )
+                result = r or "Done."
+
+            # ── Tool Chaining Engine ─────────────────────────────────────
+            elif name == "tool_chain":
+                from actions.tool_chain import tool_chain
+                r = await loop.run_in_executor(
+                    self._tool_executor,
+                    lambda: tool_chain(args, player=self.ui, session_memory=None),
+                )
+                result = r or "Done."
+
+            # ── File Download Manager ────────────────────────────────────
+            elif name == "file_download":
+                from actions.file_download import file_download
+                r = await loop.run_in_executor(
+                    self._tool_executor,
+                    lambda: file_download(args, player=self.ui, session_memory=None),
+                )
+                result = r or "Done."
+
+            # ── GitHub Integration ──────────────────────────────────────
+            elif name == "github_api":
+                from actions.github_api import github_api
+                r = await loop.run_in_executor(
+                    self._tool_executor,
+                    lambda: github_api(args, player=self.ui, session_memory=None),
+                )
+                result = r or "Done."
+
+            # ── Twitter/X Integration ───────────────────────────────────
+            elif name == "twitter_api":
+                from actions.twitter_api import twitter_api
+                r = await loop.run_in_executor(
+                    self._tool_executor,
+                    lambda: twitter_api(args, player=self.ui, session_memory=None),
+                )
+                result = r or "Done."
+
+            # ── Email Integration ───────────────────────────────────────
+            elif name == "email_api":
+                from actions.email_api import email_api
+                r = await loop.run_in_executor(
+                    self._tool_executor,
+                    lambda: email_api(args, player=self.ui, session_memory=None),
+                )
+                result = r or "Done."
+
+            # ── Setup Wizard ────────────────────────────────────────────
+            elif name == "setup_wizard":
+                from actions.setup_wizard import setup_wizard
+                r = await loop.run_in_executor(
+                    self._tool_executor,
+                    lambda: setup_wizard(args, player=self.ui, session_memory=None),
+                )
+                result = r or "Done."
+
+            # ── Behavior Analytics ──────────────────────────────────────
+            elif name == "behavior_analytics":
+                from actions.behavior_analytics import behavior_analytics
+                r = await loop.run_in_executor(
+                    self._tool_executor,
+                    lambda: behavior_analytics(args, player=self.ui, session_memory=None),
+                )
+                result = r or "Done."
+
+            # ── Pattern Recognition ─────────────────────────────────────
+            elif name == "pattern_recognition":
+                from memory.patterns import pattern_recognition
+                r = await loop.run_in_executor(
+                    self._tool_executor,
+                    lambda: pattern_recognition(args, player=self.ui, session_memory=None),
+                )
+                result = r or "Done."
+
+            # ── Semantic Search ──────────────────────────────────────────
+            elif name == "semantic_search":
+                from memory.semantic import semantic_search
+                query = args.get("query", "")
+                limit = args.get("limit", 10)
+                user_id = args.get("user_id", "")
+                r = await loop.run_in_executor(
+                    self._tool_executor,
+                    lambda: semantic_search(query, limit, user_id),
+                )
+                if r:
+                    lines = [f"Found {len(r)} results:"]
+                    for item in r[:5]:
+                        lines.append(f"  [{item['score']}] {item['content'][:80]}...")
+                    result = "\n".join(lines)
+                else:
+                    result = "No matching memories found"
+
+            # ── Advanced Vision System ──────────────────────────────────
+            elif name == "advanced_vision":
+                from actions.advanced_vision import advanced_vision
+                r = await loop.run_in_executor(
+                    self._tool_executor,
+                    lambda: advanced_vision(args, player=self.ui, session_memory=None),
+                )
+                result = r or "Done."
+
+            # ── Self-Improvement Engine ─────────────────────────────────
+            elif name == "self_improve":
+                from core.self_improve import self_improve
+                r = await loop.run_in_executor(
+                    self._tool_executor,
+                    lambda: self_improve(args, player=self.ui, session_memory=None),
+                )
+                result = r or "Done."
 
             else:
                 if self._plugin_registry.has(name):

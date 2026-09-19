@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SONIC AI — Intelligent Assistant</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='45' fill='%2305070a' stroke='%2300d9ff' stroke-width='3'/%3E%3Ctext x='50' y='58' text-anchor='middle' fill='%2300d9ff' font-family='sans-serif' font-size='32' font-weight='bold'%3ES%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+    <!-- Particle canvas background -->
+    <canvas id="particles"></canvas>
+
+    <!-- Navigation -->
+    <nav class="nav" id="nav">
+        <div class="nav-inner">
+            <a href="#" class="nav-logo">
+                <span class="logo-icon">S</span>
+                <span class="logo-text">SONIC<span class="logo-ai">AI</span></span>
+            </a>
+            <div class="nav-links" id="navLinks">
+                <a href="#features" class="nav-link">Features</a>
+                <a href="#capabilities" class="nav-link">Capabilities</a>
+                <a href="#security" class="nav-link">Security</a>
+                <a href="#architecture" class="nav-link">Architecture</a>
+            </div>
+            <a href="#download" class="nav-cta">Get Started</a>
+            <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero" id="hero">
+        <div class="hero-grid"></div>
+        <div class="hero-content">
+            <div class="hero-badge" data-animate="fade-up">
+                <span class="badge-dot"></span>
+                v1.0.5 — Stable Release
+            </div>
+            <h1 class="hero-title" data-animate="fade-up" data-delay="100">
+                Less Interface.<br>
+                <span class="hero-accent">More Intelligence.</span>
+            </h1>
+            <p class="hero-sub" data-animate="fade-up" data-delay="200">
+                SONIC AI is a next-generation autonomous assistant that manages your life, 
+                executes complex tasks, and learns from every interaction — all with 
+                military-grade security.
+            </p>
+            <div class="hero-actions" data-animate="fade-up" data-delay="300">
+                <a href="#download" class="btn btn-primary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download v1.0.5
+                </a>
+                <a href="#features" class="btn btn-ghost">
+                    Explore Features
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </a>
+            </div>
+            <div class="hero-stats" data-animate="fade-up" data-delay="400">
+                <div class="stat">
+                    <span class="stat-value" data-count="12">0</span><span class="stat-suffix">+</span>
+                    <span class="stat-label">AI Modules</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat">
+                    <span class="stat-value" data-count="50">0</span><span class="stat-suffix">+</span>
+                    <span class="stat-label">Action Tools</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat">
+                    <span class="stat-value" data-count="6">0</span><span class="stat-suffix">-Layer</span>
+                    <span class="stat-label">Security Stack</span>
+                </div>
+            </div>
+        </div>
+        <div class="hero-visual" data-animate="fade-left" data-delay="200">
+            <div class="orb">
+                <div class="orb-ring orb-ring-1"></div>
+                <div class="orb-ring orb-ring-2"></div>
+                <div class="orb-ring orb-ring-3"></div>
+                <div class="orb-core"></div>
+                <div class="orb-pulse"></div>
+            </div>
+        </div>
+        <div class="hero-scroll">
+            <span>Scroll to explore</span>
+            <div class="scroll-line"></div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section class="section features" id="features">
+        <div class="container">
+            <div class="section-header" data-animate="fade-up">
+                <span class="section-tag">Core Features</span>
+                <h2 class="section-title">Everything You Need,<br><span class="accent">Nothing You Don't</span></h2>
+                <p class="section-desc">SONIC AI is built on a modular architecture where each feature operates as an independent, intelligent module.</p>
+            </div>
+            <div class="features-grid">
+                <div class="feature-card feature-card-large" data-animate="fade-up" data-delay="0">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    </div>
+                    <h3 class="feature-title">Autonomous Task Planner</h3>
+                    <p class="feature-desc">Breaks complex multi-step goals into executable plans. SONIC researches, plans, and executes — autonomously.</p>
+                    <div class="feature-example">
+                        <code>"Research laptops, compare prices, and recommend the best one"</code>
+                    </div>
+                    <div class="feature-tag">AI-Driven</div>
+                </div>
+                <div class="feature-card" data-animate="fade-up" data-delay="100">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    </div>
+                    <h3 class="feature-title">Tool Chaining</h3>
+                    <p class="feature-desc">Chain multiple tools in a single flow. Result of Tool A automatically becomes input of Tool B.</p>
+                    <div class="feature-tag">Automation</div>
+                </div>
+                <div class="feature-card" data-animate="fade-up" data-delay="200">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <h3 class="feature-title">Code Sandbox</h3>
+                    <p class="feature-desc">Scans LLM-generated code for dangerous patterns. Blocks destructive commands and filesystem escapes.</p>
+                    <div class="feature-tag">Security</div>
+                </div>
+                <div class="feature-card" data-animate="fade-up" data-delay="300">
+                    <div class="feature-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                    </div>
+                    <h3 class="feature-title">Life Dashboard</h3>
+                    <p class="feature-desc">Complete life management with AI predictions. Track health, finances, goals, habits, and relationships.</p>
+                    <div class="feature-tag">Holistic</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Capabilities Section -->
+    <section class="section capabilities" id="capabilities">
+        <div class="container">
+            <div class="section-header" data-animate="fade-up">
+                <span class="section-tag">Intelligence Stack</span>
+                <h2 class="section-title">Built for <span class="accent">Real Life</span></h2>
+            </div>
+            <div class="cap-grid">
+                <div class="cap-card" data-animate="fade-up" data-delay="0">
+                    <div class="cap-number">01</div>
+                    <h3 class="cap-title">Smart Weather</h3>
+                    <p class="cap-desc">Auto-detects your location and opens Google Weather instantly. No manual city input needed — SONIC knows where you are.</p>
+                    <div class="cap-detail">
+                        <span class="cap-tech">LocationContext + Browser API</span>
+                    </div>
+                </div>
+                <div class="cap-card" data-animate="fade-up" data-delay="80">
+                    <div class="cap-number">02</div>
+                    <h3 class="cap-title">Health & Fitness</h3>
+                    <p class="cap-desc">Track steps, calories, sleep, heart rate, mood, and energy levels. AI analyzes patterns and recommends improvements.</p>
+                    <div class="cap-detail">
+                        <span class="cap-tech">HealthData Engine</span>
+                    </div>
+                </div>
+                <div class="cap-card" data-animate="fade-up" data-delay="160">
+                    <div class="cap-number">03</div>
+                    <h3 class="cap-title">Financial Intelligence</h3>
+                    <p class="cap-desc">Track balance, income, expenses, savings, and investments. AI-powered spending analysis and budget recommendations.</p>
+                    <div class="cap-detail">
+                        <span class="cap-tech">FinanceData Module</span>
+                    </div>
+                </div>
+                <div class="cap-card" data-animate="fade-up" data-delay="240">
+                    <div class="cap-number">04</div>
+                    <h3 class="cap-title">Goal Tracking</h3>
+                    <p class="cap-desc">Set goals with milestones and deadlines. SONIC tracks progress across health, finance, career, and personal categories.</p>
+                    <div class="cap-detail">
+                        <span class="cap-tech">Milestone System</span>
+                    </div>
+                </div>
+                <div class="cap-card" data-animate="fade-up" data-delay="320">
+                    <div class="cap-number">05</div>
+                    <h3 class="cap-title">Habit Builder</h3>
+                    <p class="cap-desc">Build streaks with daily, weekly, or monthly habits. Visualize your consistency and get AI-powered nudges.</p>
+                    <div class="cap-detail">
+                        <span class="cap-tech">Streak Engine</span>
+                    </div>
+                </div>
+                <div class="cap-card" data-animate="fade-up" data-delay="400">
+                    <div class="cap-number">06</div>
+                    <h3 class="cap-title">Relationship Manager</h3>
+                    <p class="cap-desc">Keep track of important people — birthdays, last interactions, and relationship importance scores.</p>
+                    <div class="cap-detail">
+                        <span class="cap-tech">Social Graph</span>
+                    </div>
+                </div>
+                <div class="cap-card" data-animate="fade-up" data-delay="480">
+                    <div class="cap-number">07</div>
+                    <h3 class="cap-title">Memory System</h3>
+                    <p class="cap-desc">Persistent session memory with consolidation. SONIC remembers context across conversations and learns your preferences.</p>
+                    <div class="cap-detail">
+                        <span class="cap-tech">MemoryManager</span>
+                    </div>
+                </div>
+                <div class="cap-card" data-animate="fade-up" data-delay="560">
+                    <div class="cap-number">08</div>
+                    <h3 class="cap-title">Emotion Engine</h3>
+                    <p class="cap-desc">SONIC adapts its personality and responses based on emotional context. Professional when needed, casual when appropriate.</p>
+                    <div class="cap-detail">
+                        <span class="cap-tech">Personality System</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Security Section -->
+    <section class="section security" id="security">
+        <div class="container">
+            <div class="security-layout">
+                <div class="security-info" data-animate="fade-right">
+                    <span class="section-tag">Security</span>
+                    <h2 class="section-title">Six-Layer<br><span class="accent">Security Stack</span></h2>
+                    <p class="section-desc">Every action SONIC takes passes through a comprehensive security pipeline. Your system is always protected.</p>
+                    <div class="security-layers">
+                        <div class="layer" data-animate="fade-up" data-delay="0">
+                            <div class="layer-bar" style="--layer-width: 100%"></div>
+                            <div class="layer-info">
+                                <span class="layer-name">Authentication Limiter</span>
+                                <span class="layer-detail">Rate limiting + brute-force protection</span>
+                            </div>
+                        </div>
+                        <div class="layer" data-animate="fade-up" data-delay="80">
+                            <div class="layer-bar" style="--layer-width: 92%"></div>
+                            <div class="layer-info">
+                                <span class="layer-name">Audit Logger</span>
+                                <span class="layer-detail">Complete action trail with event tracking</span>
+                            </div>
+                        </div>
+                        <div class="layer" data-animate="fade-up" data-delay="160">
+                            <div class="layer-bar" style="--layer-width: 88%"></div>
+                            <div class="layer-info">
+                                <span class="layer-name">Intrusion Detection</span>
+                                <span class="layer-detail">Real-time threat monitoring & alerts</span>
+                            </div>
+                        </div>
+                        <div class="layer" data-animate="fade-up" data-delay="240">
+                            <div class="layer-bar" style="--layer-width: 85%"></div>
+                            <div class="layer-info">
+                                <span class="layer-name">Input Sanitizer</span>
+                                <span class="layer-detail">XSS/injection prevention on all inputs</span>
+                            </div>
+                        </div>
+                        <div class="layer" data-animate="fade-up" data-delay="320">
+                            <div class="layer-bar" style="--layer-width: 95%"></div>
+                            <div class="layer-info">
+                                <span class="layer-name">Code Sandbox</span>
+                                <span class="layer-detail">Pattern scanning for dangerous operations</span>
+                            </div>
+                        </div>
+                        <div class="layer" data-animate="fade-up" data-delay="400">
+                            <div class="layer-bar" style="--layer-width: 90%"></div>
+                            <div class="layer-info">
+                                <span class="layer-name">Firebase Auth</span>
+                                <span class="layer-detail">OAuth + Google sign-in integration</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="security-visual" data-animate="fade-left" data-delay="200">
+                    <div class="shield">
+                        <div class="shield-ring shield-ring-1"></div>
+                        <div class="shield-ring shield-ring-2"></div>
+                        <div class="shield-ring shield-ring-3"></div>
+                        <div class="shield-icon">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
+                        </div>
+                        <div class="shield-status">SECURED</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Architecture Section -->
+    <section class="section architecture" id="architecture">
+        <div class="container">
+            <div class="section-header" data-animate="fade-up">
+                <span class="section-tag">Architecture</span>
+                <h2 class="section-title">How SONIC <span class="accent">Thinks</span></h2>
+                <p class="section-desc">A modular pipeline where every voice command flows through intent detection, tool selection, security scanning, and execution.</p>
+            </div>
+            <div class="arch-flow" data-animate="fade-up" data-delay="100">
+                <div class="arch-step">
+                    <div class="arch-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                    </div>
+                    <h4>Voice Input</h4>
+                    <p>SoundDevice captures audio, converted to text via Gemini AI</p>
+                </div>
+                <div class="arch-arrow">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </div>
+                <div class="arch-step">
+                    <div class="arch-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    </div>
+                    <h4>Intent Detection</h4>
+                    <p>Classifies user intent and extracts required parameters</p>
+                </div>
+                <div class="arch-arrow">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </div>
+                <div class="arch-step">
+                    <div class="arch-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <h4>Security Scan</h4>
+                    <p>Sandbox validates code, sanitizer cleans inputs, IDS monitors</p>
+                </div>
+                <div class="arch-arrow">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </div>
+                <div class="arch-step">
+                    <div class="arch-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                    </div>
+                    <h4>Tool Execution</h4>
+                    <p>Selected tool executes with chained results and memory update</p>
+                </div>
+                <div class="arch-arrow">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </div>
+                <div class="arch-step">
+                    <div class="arch-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    </div>
+                    <h4>Voice Response</h4>
+                    <p>Synthesized response delivered via Gemini TTS</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Download / CTA Section -->
+    <section class="section cta" id="download">
+        <div class="container">
+            <div class="cta-card" data-animate="fade-up">
+                <div class="cta-glow"></div>
+                <h2 class="cta-title">Ready to Meet Your<br><span class="accent">AI Companion?</span></h2>
+                <p class="cta-desc">Download SONIC AI v1.0.5 — the stable release with UI polish and bug fixes.</p>
+                <div class="cta-actions">
+                    <a href="https://github.com/elyxcart-rgb/ATHERION-LABS/releases/download/v1.0.5/SONIC-AI-Setup-1.0.5.exe" class="btn btn-primary btn-large" target="_blank" rel="noopener">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download for Windows
+                    </a>
+                    <a href="https://github.com/elyxcart-rgb/ATHERION-LABS" class="btn btn-ghost" target="_blank" rel="noopener">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/></svg>
+                        View on GitHub
+                    </a>
+                </div>
+                <div class="cta-meta">
+                    <span>v1.0.5</span>
+                    <span class="meta-dot"></span>
+                    <span>271 MB</span>
+                    <span class="meta-dot"></span>
+                    <span>September 12, 2026</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-inner">
+                <div class="footer-brand">
+                    <span class="logo-icon">S</span>
+                    <span class="logo-text">SONIC<span class="logo-ai">AI</span></span>
+                    <p class="footer-tagline">Less interface. More intelligence.</p>
+                </div>
+                <div class="footer-links">
+                    <div class="footer-col">
+                        <h4>Product</h4>
+                        <a href="#features">Features</a>
+                        <a href="#security">Security</a>
+                        <a href="#download">Download</a>
+                    </div>
+                    <div class="footer-col">
+                        <h4>Resources</h4>
+                        <a href="https://github.com/elyxcart-rgb/ATHERION-LABS" target="_blank" rel="noopener">GitHub</a>
+                        <a href="#">Documentation</a>
+                        <a href="#">Changelog</a>
+                    </div>
+                    <div class="footer-col">
+                        <h4>Legal</h4>
+                        <a href="#">Privacy Policy</a>
+                        <a href="#">Terms of Service</a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <span>&copy; 2026 ATHERION LABS. All rights reserved.</span>
+                <span>Built with precision.</span>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

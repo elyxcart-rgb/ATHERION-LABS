@@ -23,9 +23,15 @@ from .context_builder import build_context
 
 
 def get_base_dir() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
+    """Get per-user data directory (NEVER inside the app package)."""
+    import os
+    if sys.platform == "win32":
+        root = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    elif sys.platform == "darwin":
+        root = Path.home() / "Library" / "Application Support"
+    else:
+        root = Path.home() / ".local" / "share"
+    return root / "SONIC AI"
 
 
 BASE_DIR         = get_base_dir()
@@ -45,7 +51,7 @@ _current_user_id: str = ""
 def set_user_id(user_id: str):
     global _current_user_id
     _current_user_id = user_id
-    print(f"[Memory] 🔐 Active user: {user_id}")
+    print(f"[Memory] Active user: {user_id}")
 
 def get_user_id() -> str:
     return _current_user_id

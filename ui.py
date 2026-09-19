@@ -4539,124 +4539,57 @@ class MainWindow(QMainWindow):
         self._auth_overlay = ov
 
     def _show_onboarding(self):
-        """Show the multi-step onboarding wizard."""
-        ow = OnboardingWizard(self.centralWidget())
-        cw = self.centralWidget()
-        ow_w, ow_h = 520, 580
-        ow.setGeometry(
-            (cw.width()  - ow_w) // 2,
-            (cw.height() - ow_h) // 2,
-            ow_w, ow_h,
-        )
-        ow.completed.connect(self._on_onboarding_completed)
-        ow.skipped.connect(self._on_onboarding_skipped)
-        ow.show()
-        self._onboarding_wizard = ow
+        """Show the modern setup wizard."""
+        from ui_wizard import ModernWizard
+        wizard = ModernWizard(self)
+        wizard.completed.connect(self._on_onboarding_completed)
+        wizard.skipped.connect(self._on_onboarding_skipped)
+        wizard.show()
+        self._onboarding_wizard = wizard
 
-    def _on_onboarding_completed(self, data: dict):
+    def _on_onboarding_completed(self, data: dict = None):
         """Handle onboarding completion — save profile and show auth if needed."""
         try:
-            from auth import get_auth
-            auth = get_auth()
-            
-            # Validate required fields
-            email = data.get("email", "").strip()
-            user_id = data.get("user_id", "").strip()
-            if not email or not user_id:
-                raise ValueError("Missing email or user_id from onboarding data")
-            
-            # Update extended profile with all collected data
-            profile_data = {
-                "full_name": data.get("full_name", "").strip(),
-                "phone": data.get("phone", "").strip(),
-                "location": data.get("location", "").strip(),
-                "timezone": data.get("timezone", "").strip(),
-                "api_keys": data.get("api_keys", {}),
-                "preferences": data.get("preferences", {}),
-                "onboarding_completed": 1,
-            }
-            
-            # Only update if we have a session
-            if auth.is_authenticated:
-                result = auth.update_extended_profile(**profile_data)
-                if result.get("error"):
-                    print(f"[ONBOARD] Profile update warning: {result['error']}")
-                result = auth.mark_onboarding_completed()
-                if result.get("error"):
-                    print(f"[ONBOARD] Mark onboarding warning: {result['error']}")
-            
-            # Apply preferences
+            if data is None:
+                data = {}
+
+            from memory.config_manager import save_assistant_config
+            from memory.memory_manager import remember
+
             prefs = data.get("preferences", {})
-            if prefs.get("assistant_name"):
-                self._assistant_name = prefs["assistant_name"]
-            if prefs.get("user_name"):
-                self._user_name = prefs["user_name"]
-            if prefs.get("theme"):
-                self._apply_theme(prefs["theme"])
-            
-            # Save assistant/user names to config
             assistant_name = prefs.get("assistant_name", "SONIC") or "SONIC"
             user_name = prefs.get("user_name", "") or ""
+
             try:
-                from memory.config_manager import save_assistant_config
                 save_assistant_config(assistant_name, user_name)
             except Exception as e:
                 print(f"[ONBOARD] Failed to save assistant config: {e}")
-            
-            # Apply API keys
-            api_keys = data.get("api_keys", {})
-            if api_keys:
-                self._save_api_keys(api_keys)
-            
-            # Inject profile data into memory engine for AI context
-            try:
-                from memory.memory_manager import remember, set_user_id
-                # Set user_id from auth
-                uid = auth.user_id if hasattr(auth, 'user_id') else ""
-                if uid:
-                    set_user_id(uid)
-                if data.get("full_name"):
-                    remember("name", data["full_name"], "identity")
-                if data.get("location"):
-                    remember("city", data["location"], "identity")
-                if data.get("timezone"):
-                    remember("timezone", data["timezone"], "identity")
-                if user_name:
-                    remember("preferred_name", user_name, "identity")
-                # Save language and custom instructions
-                lang = prefs.get("language", "").strip()
-                if lang:
-                    remember("language", lang, "identity")
-                instructions = prefs.get("custom_instructions", "").strip()
-                if instructions:
-                    remember("custom_instructions", instructions, "preferences")
-                print(f"[ONBOARD] Profile injected into memory context")
-            except Exception as e:
-                print(f"[ONBOARD] Memory injection failed: {e}")
-            
-            # Log success
-            print(f"[ONBOARD] Onboarding completed for {email}")
-            
-            # ALWAYS close wizard — even if later steps fail
+
+            if user_name:
+                remember("preferred_name", user_name, "identity")
+            lang = prefs.get("language", "").strip()
+            if lang:
+                remember("language", lang, "identity")
+            instructions = prefs.get("custom_instructions", "").strip()
+            if instructions:
+                remember("custom_instructions", instructions, "preferences")
+
+            print(f"[ONBOARD] Onboarding completed")
+
             if self._onboarding_wizard:
                 self._onboarding_wizard.hide()
                 self._onboarding_wizard = None
-                
-            # ALWAYS emit auth_completed — never require second login
-            self._auth_user_id = auth.user_id if auth.is_authenticated else user_id
-            self._auth_email = auth.current_user.get("email", "") if auth.is_authenticated else email
+
             self._ready = True
             self.auth_completed.emit()
-                
+
         except Exception as e:
             print(f"[ONBOARD] Onboarding save error: {e}")
             import traceback
             traceback.print_exc()
-            # ALWAYS close wizard on error too — don't leave user stuck
             if self._onboarding_wizard:
                 self._onboarding_wizard.hide()
                 self._onboarding_wizard = None
-            # ALWAYS emit auth_completed — runner must never hang
             try:
                 from auth import get_auth
                 auth = get_auth()
@@ -4671,27 +4604,10 @@ class MainWindow(QMainWindow):
     def _on_onboarding_skipped(self):
         """User skipped onboarding — save any preferences set so far, show auth."""
         if self._onboarding_wizard:
-            # Save theme preference if user selected one
-            try:
-                data = self._onboarding_wizard._data
-                if "preferences" in data and "theme" in data["preferences"]:
-                    theme = data["preferences"]["theme"]
-                    from memory.config_manager import ensure_config_dir, CONFIG_FILE
-                    import json
-                    ensure_config_dir()
-                    cfg = {}
-                    if CONFIG_FILE.exists():
-                        try:
-                            cfg = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-                        except Exception:
-                            cfg = {}
-                    cfg["theme"] = theme
-                    CONFIG_FILE.write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-            except Exception:
-                pass
             self._onboarding_wizard.hide()
             self._onboarding_wizard = None
-        self._show_auth()
+        self._ready = True
+        self.auth_completed.emit()
 
     def _on_auth_success(self, user_id: str, email: str):
         self._auth_user_id = user_id

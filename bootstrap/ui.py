@@ -618,7 +618,7 @@ class SonicBootUI(QWidget):
 
     def _start_cinematic_boot(self):
         """Start the cinematic boot animation sequence."""
-        self._cinematic.start()
+        pass  # SonicBootAnimation auto-starts in __init__
 
     def _on_cinematic_complete(self):
         """Called when cinematic animation finishes — transition to setup UI."""

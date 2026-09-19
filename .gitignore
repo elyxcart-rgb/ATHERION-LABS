@@ -34,10 +34,28 @@ desktop.ini
 # Logs
 *.log
 
-# Secrets & user data (never commit)
+# ── SECURITY: Secrets & user data (NEVER commit) ────────────────────────
+# API Keys
 config/api_keys.json
+config/*.key
+*.env
+.env*
+
+# Firebase
 auth/firebase_config.json
+
+# Auth user data (plaintext passwords, sessions, profiles)
 auth/.local_users.json
 auth/.profile.json
 auth/.session.json
 auth/.onboarding_*.json
+auth/.google_credentials.json
+auth/*.tmp
+
+# Any JSON files in auth/ that aren't Python code
+auth/*.json
+
+# User runtime data
+*.sqlite
+*.db
+*.session

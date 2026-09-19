@@ -3,9 +3,15 @@ import sys
 from pathlib import Path
 
 def get_base_dir() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
+    """Get per-user data directory (NEVER inside the app package)."""
+    import os
+    if sys.platform == "win32":
+        root = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    elif sys.platform == "darwin":
+        root = Path.home() / "Library" / "Application Support"
+    else:
+        root = Path.home() / ".local" / "share"
+    return root / "SONIC AI"
 
 BASE_DIR    = get_base_dir()
 CONFIG_DIR  = BASE_DIR / "config"

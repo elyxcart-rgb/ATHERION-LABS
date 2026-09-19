@@ -1,10 +1,17 @@
+"""SONIC AI — Authentication Core (Security-Hardened).
+
+ROOT CAUSE FIX: All auth data now stored in per-user AppData directory.
+The application package NEVER contains user sessions, passwords, or profiles.
+"""
 from __future__ import annotations
 
 import hashlib
 import json
 import logging
+import os
 import re
 import secrets
+import sys
 import threading
 import time
 from pathlib import Path
@@ -12,18 +19,41 @@ from typing import Any
 
 logger = logging.getLogger("sonic.auth")
 
-_AUTH_DIR = Path(__file__).resolve().parent
-_CONFIG_PATH = _AUTH_DIR / "firebase_config.json"
+# ── Per-user data directory (NEVER inside the app package) ──────────────
+_APP_NAME = "SONIC AI"
+
+if sys.platform == "win32":
+    _USER_DATA_ROOT = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+elif sys.platform == "darwin":
+    _USER_DATA_ROOT = Path.home() / "Library" / "Application Support"
+else:
+    _USER_DATA_ROOT = Path.home() / ".local" / "share"
+
+_AUTH_DIR = _USER_DATA_ROOT / _APP_NAME / "auth"
+_CONFIG_DIR = _USER_DATA_ROOT / _APP_NAME / "config"
+
+# Auth data paths — ALL in per-user AppData, NEVER in app package
 _SESSION_PATH = _AUTH_DIR / ".session.json"
 _PROFILE_PATH = _AUTH_DIR / ".profile.json"
-_ONBOARDING_PATH = _AUTH_DIR / ".onboarding.json"
+_ONBOARDING_DIR = _AUTH_DIR / "onboarding"
 _LOCAL_CREDS_PATH = _AUTH_DIR / ".local_users.json"
 _GOOGLE_CRED_PATH = _AUTH_DIR / ".google_credentials.json"
+
+# Firebase config — user provides at runtime, NOT bundled
+_FIREBASE_CONFIG_SOURCE = Path(__file__).resolve().parent / "firebase_config.json"
+_FIREBASE_CONFIG_USER = _CONFIG_DIR / "firebase_config.json"
 
 _EMAIL_RE = re.compile(r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$")
 _MIN_PASS_LEN = 8
 _MAX_RETRIES = 3
 _RETRY_DELAY = 1.0
+
+
+def _ensure_dirs():
+    """Create auth data directories."""
+    _AUTH_DIR.mkdir(parents=True, exist_ok=True)
+    _CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    _ONBOARDING_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _safe_json_read(path: Path, default: Any = None) -> Any:
@@ -48,6 +78,22 @@ def _safe_json_write(path: Path, data: Any) -> bool:
         return False
 
 
+def _hash_password(password: str) -> str:
+    """Hash password with SHA-256 + salt for local auth."""
+    salt = secrets.token_hex(16)
+    hashed = hashlib.sha256(f"{salt}:{password}".encode()).hexdigest()
+    return f"{salt}:{hashed}"
+
+
+def _verify_password(password: str, stored: str) -> bool:
+    """Verify password against hashed storage."""
+    if ":" not in stored:
+        return False
+    salt, expected_hash = stored.split(":", 1)
+    actual_hash = hashlib.sha256(f"{salt}:{password}".encode()).hexdigest()
+    return secrets.compare_digest(actual_hash, expected_hash)
+
+
 def _validate_email(email: str) -> bool:
     return bool(_EMAIL_RE.match(email))
 
@@ -63,6 +109,7 @@ class SonicAuth:
     _lock = threading.Lock()
 
     def __init__(self) -> None:
+        _ensure_dirs()
         self._user_id: str = ""
         self._email: str = ""
         self._display_name: str = ""
@@ -71,7 +118,7 @@ class SonicAuth:
         self._refresh_token: str = ""
         self._token_expires_at: float = 0.0
         self._is_authenticated: bool = False
-        self._provider: str = ""  # "email", "google", "local"
+        self._provider: str = ""
         self._firebase_app: Any = None
         self._firebase_auth: Any = None
         self._firebase_user: Any = None
@@ -86,8 +133,6 @@ class SonicAuth:
                 if cls._instance is None:
                     cls._instance = cls()
         return cls._instance
-
-    # ── Properties ────────────────────────────────────────────────────────
 
     @property
     def user_id(self) -> str:
@@ -113,6 +158,24 @@ class SonicAuth:
     def last_error(self) -> str:
         return self._last_error
 
+    # ── Firebase Config ──────────────────────────────────────────────────
+
+    def _get_firebase_config(self) -> dict | None:
+        """Load Firebase config from user data dir, or copy from app bundle as template."""
+        # Check user data dir first
+        config = _safe_json_read(_FIREBASE_CONFIG_USER)
+        if config and config.get("apiKey"):
+            return config
+
+        # Copy from app bundle as template (first run)
+        if _FIREBASE_CONFIG_SOURCE.exists():
+            config = _safe_json_read(_FIREBASE_CONFIG_SOURCE)
+            if config:
+                _safe_json_write(_FIREBASE_CONFIG_USER, config)
+                return config
+
+        return None
+
     # ── Firebase Init ─────────────────────────────────────────────────────
 
     def _ensure_client_firebase(self) -> Any:
@@ -122,7 +185,7 @@ class SonicAuth:
         try:
             import pyrebase
 
-            config = _safe_json_read(_CONFIG_PATH)
+            config = self._get_firebase_config()
             if not config:
                 self._init_error = "Firebase config not found"
                 return None
@@ -159,7 +222,7 @@ class SonicAuth:
             from firebase_admin import auth as fb_auth, credentials
 
             if not firebase_admin._apps:
-                config = _safe_json_read(_CONFIG_PATH)
+                config = self._get_firebase_config()
                 if config:
                     service_account = {
                         "type": "service_account",
@@ -301,11 +364,10 @@ class SonicAuth:
     # ── Google Sign-In ────────────────────────────────────────────────────
 
     def login_with_google(self, id_token: str) -> dict[str, Any]:
-        """Sign in with Firebase using a Google ID token via REST API."""
         if not id_token or not id_token.strip():
             return {"ok": False, "success": False, "error": "Google ID token required."}
 
-        config = _safe_json_read(_CONFIG_PATH)
+        config = self._get_firebase_config()
         api_key = config.get("apiKey", "") if config else ""
         if not api_key:
             return {"ok": False, "success": False, "error": "Firebase API key not found."}
@@ -313,7 +375,6 @@ class SonicAuth:
         import urllib.request
         import urllib.error
 
-        # Firebase Auth REST API: signInWithIdp
         url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key={api_key}"
         post_body = f"id_token={id_token}&providerId=google.com"
         payload = json.dumps({
@@ -356,8 +417,7 @@ class SonicAuth:
             return {"ok": False, "success": False, "error": str(e)}
 
     def get_google_client_id(self) -> str:
-        """Get Google OAuth Client ID from config."""
-        config = _safe_json_read(_CONFIG_PATH)
+        config = self._get_firebase_config()
         if config:
             cid = config.get("google_client_id", "")
             if cid:
@@ -365,30 +425,25 @@ class SonicAuth:
         return ""
 
     def get_google_client_secret(self) -> str:
-        """Get Google OAuth Client Secret from config."""
-        config = _safe_json_read(_CONFIG_PATH)
+        config = self._get_firebase_config()
         if config:
             return config.get("google_client_secret", "")
         return ""
 
     def set_google_client_id(self, client_id: str) -> bool:
-        """Save Google OAuth Client ID to config."""
-        config = _safe_json_read(_CONFIG_PATH) or {}
+        config = self._get_firebase_config() or {}
         config["google_client_id"] = client_id
-        return _safe_json_write(_CONFIG_PATH, config)
+        return _safe_json_write(_FIREBASE_CONFIG_USER, config)
 
     def set_google_client_secret(self, client_secret: str) -> bool:
-        """Save Google OAuth Client Secret to config."""
-        config = _safe_json_read(_CONFIG_PATH) or {}
+        config = self._get_firebase_config() or {}
         config["google_client_secret"] = client_secret
-        return _safe_json_write(_CONFIG_PATH, config)
+        return _safe_json_write(_FIREBASE_CONFIG_USER, config)
 
     def is_google_configured(self) -> bool:
-        """Check if Google OAuth is properly configured."""
         return bool(self.get_google_client_id() and self.get_google_client_secret())
 
     def google_login_with_server(self, callback=None) -> dict[str, Any]:
-        """Full Google OAuth flow with local callback server."""
         if not self.is_google_configured():
             return {
                 "ok": False, "success": False,
@@ -406,13 +461,11 @@ class SonicAuth:
         import threading
         import time as _time
 
-        # Use fixed port 8081
         port = 8081
         redirect_uri = f"http://localhost:{port}"
         import uuid
         state = str(uuid.uuid4()).replace("-", "")
 
-        # Build Google OAuth URL
         params = urllib.parse.urlencode({
             "client_id": client_id,
             "redirect_uri": redirect_uri,
@@ -423,11 +476,9 @@ class SonicAuth:
         })
         auth_url = f"https://accounts.google.com/o/oauth2/v2/auth?{params}"
 
-        # Shared result container
         result_box = {"done": False, "id_token": None, "error": None, "state": state}
 
         def _exchange_code(code: str) -> str:
-            """Exchange authorization code for ID token."""
             token_data = urllib.parse.urlencode({
                 "code": code,
                 "client_id": client_id,
@@ -442,7 +493,6 @@ class SonicAuth:
             )
             with urllib.request.urlopen(token_req, timeout=30) as resp:
                 tokens = json.loads(resp.read())
-                print(f"[Auth] 📦 Token response: {list(tokens.keys())}")
                 id_token = tokens.get("id_token", "")
                 if not id_token:
                     err = tokens.get("error_description", tokens.get("error", "unknown"))
@@ -453,7 +503,6 @@ class SonicAuth:
             def do_GET(self):
                 try:
                     parsed = urllib.parse.urlparse(self.path)
-                    # Ignore favicon and other non-OAuth requests
                     if parsed.path != "/" or result_box["done"]:
                         self.send_response(200)
                         self.send_header("Content-type", "text/html; charset=utf-8")
@@ -463,10 +512,8 @@ class SonicAuth:
 
                     qs = urllib.parse.parse_qs(parsed.query)
 
-                    # Check for OAuth error
                     if "error" in qs:
                         err = qs["error"][0]
-                        print(f"[Auth] ❌ OAuth error: {err}")
                         result_box["error"] = err
                         result_box["done"] = True
                         self._respond(200, f"<h2>Cancelled</h2><pre>{err}</pre>")
@@ -476,8 +523,6 @@ class SonicAuth:
                     returned_state = qs.get("state", [None])[0]
                     expected_state = result_box["state"]
 
-                    print(f"[Auth] Callback received | code={'YES' if code else 'NO'} | state_match={returned_state == expected_state}")
-
                     if not code:
                         result_box["error"] = "No authorization code"
                         result_box["done"] = True
@@ -485,29 +530,22 @@ class SonicAuth:
                         return
 
                     if returned_state != expected_state:
-                        print(f"[Auth] State mismatch: expected={expected_state}, got={returned_state}")
                         result_box["error"] = "State mismatch"
                         result_box["done"] = True
-                        self._respond(200, f"<h2>State mismatch</h2><p>Expected: {expected_state[:8]}...<br>Got: {returned_state[:8] if returned_state else 'None'}...</p>")
+                        self._respond(200, "<h2>State mismatch</h2>")
                         return
 
-                    # Exchange code for token
-                    print(f"[Auth] 🔄 Exchanging code for token...")
                     try:
                         id_token = _exchange_code(code)
                         result_box["id_token"] = id_token
                         result_box["done"] = True
-                        print(f"[Auth] ✅ Token obtained!")
                         self._respond(200, "<h2>Sign-in successful!</h2><p>Close this tab and return to SONIC.</p>")
                     except Exception as e:
-                        print(f"[Auth] ❌ Token exchange error: {e}")
                         result_box["error"] = str(e)
                         result_box["done"] = True
                         self._respond(200, f"<h2>Token exchange failed</h2><pre>{e}</pre>")
 
                 except Exception as e:
-                    print(f"[Auth] ❌ Handler exception: {e}")
-                    import traceback; traceback.print_exc()
                     result_box["error"] = str(e)
                     result_box["done"] = True
                     self._respond(200, f"<h2>Error</h2><pre>{e}</pre>")
@@ -519,9 +557,8 @@ class SonicAuth:
                 self.wfile.write(body.encode("utf-8"))
 
             def log_message(self, format, *args):
-                print(f"[Auth] HTTP: {format % args}")
+                pass
 
-        # Start server
         try:
             class ReusableTCPServer(socketserver.TCPServer):
                 allow_reuse_address = True
@@ -532,30 +569,23 @@ class SonicAuth:
         server.timeout = 120
         server_thread = threading.Thread(target=server.serve_forever, daemon=True)
         server_thread.start()
-        print(f"[Auth] 🌐 Server on http://localhost:{port}")
 
-        _time.sleep(0.3)  # Let server bind
-
+        _time.sleep(0.3)
         webbrowser.open(auth_url)
-        print(f"[Auth] 🌐 Browser opened")
 
-        # Wait for callback
         deadline = _time.time() + 120
         while _time.time() < deadline and not result_box["done"]:
             _time.sleep(0.1)
 
         server.shutdown()
 
-        # Return result
         if result_box["error"]:
-            print(f"[Auth] ❌ Failed: {result_box['error']}")
             return {"ok": False, "success": False, "error": result_box["error"]}
 
         id_token = result_box["id_token"]
         if not id_token:
             return {"ok": False, "success": False, "error": "No token received"}
 
-        print(f"[Auth] 🔄 Signing in with Firebase...")
         return self.login_with_google(id_token)
 
     def _save_google_credentials(self, credentials: dict) -> None:
@@ -567,7 +597,6 @@ class SonicAuth:
     # ── Session Management ────────────────────────────────────────────────
 
     def restore_session(self) -> dict | bool:
-        """Restore session from disk. Returns dict with user info on success, False on failure."""
         if self._is_authenticated and self._user_id:
             if self._token_expires_at > 0 and time.time() < self._token_expires_at - 60:
                 return self._session_dict()
@@ -588,7 +617,6 @@ class SonicAuth:
         return False
 
     def _session_dict(self) -> dict:
-        """Return current session state as a dict."""
         return {
             "user_id": self._user_id,
             "email": self._email,
@@ -620,7 +648,10 @@ class SonicAuth:
             return self._is_authenticated
 
     def logout(self) -> None:
+        """Complete logout — clears ALL active user state."""
         logger.info("[Auth] Logout: %s", self._email)
+
+        # 1. Clear in-memory auth state
         self._user_id = ""
         self._email = ""
         self._display_name = ""
@@ -631,18 +662,38 @@ class SonicAuth:
         self._is_authenticated = False
         self._provider = ""
         self._firebase_user = None
+
+        # 2. Delete session file
         self._clear_session()
-        # Clear runtime secrets
+
+        # 3. Clear runtime secrets
         try:
             from auth.secrets import clear_runtime_secrets
             clear_runtime_secrets()
         except ImportError:
             pass
-        # Clear memory user_id
+
+        # 4. Clear memory user_id
         try:
             from memory.memory_manager import set_user_id
             set_user_id("")
         except ImportError:
+            pass
+
+        # 5. Clear profile cache
+        self._clear_profile()
+
+        # 6. Clear onboarding cache for this user
+        # (We DON'T delete onboarding data — it's per-user and should persist for re-login)
+
+        logger.info("[Auth] Logout complete — all runtime state cleared")
+
+    def _clear_profile(self) -> None:
+        """Delete the in-memory profile cache."""
+        try:
+            if _PROFILE_PATH.exists():
+                _PROFILE_PATH.unlink()
+        except OSError:
             pass
 
     def delete_account(self) -> dict[str, Any]:
@@ -656,6 +707,16 @@ class SonicAuth:
             except Exception as e:
                 logger.error("[Auth] Account deletion failed: %s", e)
                 return {"ok": False, "success": False, "error": f"Failed to delete account: {e}"}
+
+        # Delete ALL local data for this user
+        self._clear_profile()
+        self._clear_session()
+        try:
+            onboarding_file = _ONBOARDING_DIR / f"{self._user_id}.json"
+            if onboarding_file.exists():
+                onboarding_file.unlink()
+        except OSError:
+            pass
 
         self.logout()
         return {"ok": True, "success": True, "message": "Account deleted."}
@@ -683,14 +744,14 @@ class SonicAuth:
     def is_onboarding_completed(self) -> bool:
         if not self._user_id:
             return False
-        path = _AUTH_DIR / f".onboarding_{self._user_id}.json"
+        path = _ONBOARDING_DIR / f"{self._user_id}.json"
         data = _safe_json_read(path, {})
         return bool(data.get("completed", False)) if isinstance(data, dict) else False
 
     def mark_onboarding_completed(self) -> dict[str, Any]:
         if not self._user_id:
             return {"ok": False, "success": False, "error": "No active user."}
-        path = _AUTH_DIR / f".onboarding_{self._user_id}.json"
+        path = _ONBOARDING_DIR / f"{self._user_id}.json"
         if _safe_json_write(path, {"completed": True}):
             return {"ok": True, "success": True}
         return {"ok": False, "success": False, "error": "Failed to save onboarding status."}
@@ -784,17 +845,31 @@ class SonicAuth:
         if not isinstance(users, dict):
             users = {}
         user = users.get(email)
-        if user and user.get("password") == password:
-            self._set_session(
-                user_id=user.get("uid", hashlib.sha256(email.encode()).hexdigest()[:20]),
-                email=email,
-                id_token=secrets.token_urlsafe(32),
-                refresh_token=secrets.token_urlsafe(32),
-                provider="local",
-                display_name=user.get("display_name", ""),
-            )
-            return {"ok": True, "success": True, "user_id": self._user_id, "email": email}
+        if user:
+            stored_pass = user.get("password", "")
+            # Support both hashed and legacy plaintext passwords
+            if ":" in stored_pass:
+                if _verify_password(password, stored_pass):
+                    return self._do_fallback_login(email, user)
+            elif stored_pass == password:
+                # Legacy plaintext — migrate to hashed
+                user["password"] = _hash_password(password)
+                users[email] = user
+                _safe_json_write(_LOCAL_CREDS_PATH, users)
+                logger.info("[Auth] Migrated plaintext password to hashed for: %s", email)
+                return self._do_fallback_login(email, user)
         return {"ok": False, "success": False, "error": "Invalid email or password."}
+
+    def _do_fallback_login(self, email: str, user: dict) -> dict[str, Any]:
+        self._set_session(
+            user_id=user.get("uid", hashlib.sha256(email.encode()).hexdigest()[:20]),
+            email=email,
+            id_token=secrets.token_urlsafe(32),
+            refresh_token=secrets.token_urlsafe(32),
+            provider="local",
+            display_name=user.get("display_name", ""),
+        )
+        return {"ok": True, "success": True, "user_id": self._user_id, "email": email}
 
     def _fallback_signup(self, email: str, password: str) -> dict[str, Any]:
         users = _safe_json_read(_LOCAL_CREDS_PATH, {})
@@ -803,7 +878,7 @@ class SonicAuth:
         if email in users:
             return {"ok": False, "success": False, "error": "Email already registered."}
         uid = hashlib.sha256(email.encode()).hexdigest()[:20]
-        users[email] = {"uid": uid, "password": password, "display_name": ""}
+        users[email] = {"uid": uid, "password": _hash_password(password), "display_name": ""}
         _safe_json_write(_LOCAL_CREDS_PATH, users)
         self._set_session(
             user_id=uid,
