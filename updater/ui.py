@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QWidget, QProgressBar, QTextEdit,
+    QPushButton, QWidget, QTextEdit,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
 from PyQt6.QtGui import QFont
@@ -20,23 +20,6 @@ if TYPE_CHECKING:
     from updater import UpdateManifest
 
 logger = logging.getLogger("UPDATER")
-
-
-# ═════════════════════════════════════════════════════════════════════════════
-# Styles
-# ═════════════════════════════════════════════════════════════════════════════
-
-_BG = "#0a0d12"
-_CARD = "#111820"
-_BORDER = "#1e2a38"
-_CYAN = "#00d4ff"
-_TEXT = "#c8cdd4"
-_DIM = "#6b7a8d"
-_BTN_UPDATE = "background-color: #00d4ff; color: #000000; border: none; border-radius: 8px; padding: 12px 24px; font-weight: bold;"
-_BTN_UPDATE_HOVER = "background-color: #00b8e0;"
-_BTN_LATER = f"background-color: {_CARD}; color: {_DIM}; border: 1px solid {_BORDER}; border-radius: 8px; padding: 12px 24px;"
-_BTN_LATER_HOVER = f"background-color: {_BORDER}; color: {_TEXT};"
-_BTN_RETRY = f"background-color: {_CARD}; color: {_CYAN}; border: 1px solid {_CYAN}; border-radius: 8px; padding: 12px 24px;"
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -80,145 +63,174 @@ class UpdatePopup(QDialog):
         self._setup_ui()
 
     def _setup_ui(self):
+        from apple_design import (
+            Tokens, AppleButton, AppleCard, AppleProgressBar,
+            create_shadow, fade_in,
+        )
+
         self.setWindowTitle("SONIC Apex — Update")
-        self.setFixedSize(460, 400)
+        self.setFixedSize(460, 420)
         self.setWindowFlags(
             Qt.WindowType.Dialog
             | Qt.WindowType.WindowCloseButtonHint
             | Qt.WindowType.WindowStaysOnTopHint
         )
-        self.setStyleSheet(f"QDialog {{ background-color: {_BG}; }}")
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {Tokens.BG_PRIMARY};
+                border: 1px solid {Tokens.BORDER_LIGHT};
+                border-radius: {Tokens.R_XL}px;
+            }}
+        """)
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(10)
-        layout.setContentsMargins(28, 20, 28, 20)
+        layout.setSpacing(0)
+        layout.setContentsMargins(Tokens.XXL, Tokens.XXL, Tokens.XXL, Tokens.XL)
 
-        # SONIC branding
-        brand = QLabel("SONIC Apex")
-        brand.setStyleSheet(f"color: {_CYAN}; font-size: 11px; font-weight: bold; letter-spacing: 4px; background: transparent; border: none;")
-        brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(brand)
-
-        # Divider
-        div = QLabel()
-        div.setFixedHeight(1)
-        div.setStyleSheet(f"background-color: {_BORDER}; border: none;")
-        layout.addWidget(div)
-
-        # Title
+        # ── Title ─────────────────────────────────────────────────────────
         if self.manifest.mandatory:
             title = QLabel("UPDATE REQUIRED")
-            title.setStyleSheet(f"color: #ff4444; font-size: 18px; font-weight: bold; background: transparent; border: none;")
+            title.setStyleSheet(f"""
+                color: {Tokens.ERROR};
+                font-size: 18px;
+                font-weight: 700;
+                letter-spacing: 1px;
+                background: transparent;
+                border: none;
+            """)
         else:
             title = QLabel("New Version Available")
-            title.setStyleSheet(f"color: {_TEXT}; font-size: 18px; font-weight: bold; background: transparent; border: none;")
+            title.setStyleSheet(f"""
+                color: {Tokens.TEXT_PRIMARY};
+                font-size: 18px;
+                font-weight: 700;
+                background: transparent;
+                border: none;
+            """)
+        title.setFont(Tokens.font(18, QFont.Weight.Bold))
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
-        # Version info with arrow
+        layout.addSpacing(Tokens.XL)
+
+        # ── Version Info Card ─────────────────────────────────────────────
         from version import APP_VERSION
-        ver_layout = QHBoxLayout()
-        ver_layout.setSpacing(8)
-        ver_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        ver_card = QWidget()
+        ver_card.setStyleSheet(f"""
+            QWidget {{
+                background: {Tokens.BG_ELEVATED};
+                border: 1px solid {Tokens.BORDER};
+                border-radius: {Tokens.R_MD}px;
+            }}
+        """)
+        ver_card_layout = QHBoxLayout(ver_card)
+        ver_card_layout.setContentsMargins(Tokens.XL, Tokens.LG, Tokens.XL, Tokens.LG)
+        ver_card_layout.setSpacing(Tokens.SM)
+        ver_card_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         old_ver = QLabel(f"v{APP_VERSION}")
-        old_ver.setStyleSheet(f"color: {_DIM}; font-size: 13px; background: transparent; border: none;")
+        old_ver.setFont(Tokens.font(13, QFont.Weight.Medium))
+        old_ver.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent; border: none;")
 
-        arrow = QLabel("→")
-        arrow.setStyleSheet(f"color: {_CYAN}; font-size: 16px; font-weight: bold; background: transparent; border: none;")
+        arrow = QLabel("  →  ")
+        arrow.setFont(Tokens.font(14, QFont.Weight.Bold))
+        arrow.setStyleSheet(f"color: {Tokens.CYAN}; background: transparent; border: none;")
 
         new_ver = QLabel(f"v{self.manifest.version}")
-        new_ver.setStyleSheet(f"color: {_CYAN}; font-size: 13px; font-weight: bold; background: transparent; border: none;")
+        new_ver.setFont(Tokens.font(13, QFont.Weight.Bold))
+        new_ver.setStyleSheet(f"color: {Tokens.CYAN}; background: transparent; border: none;")
 
-        ver_layout.addWidget(old_ver)
-        ver_layout.addWidget(arrow)
-        ver_layout.addWidget(new_ver)
-        layout.addLayout(ver_layout)
+        ver_card_layout.addWidget(old_ver)
+        ver_card_layout.addWidget(arrow)
+        ver_card_layout.addWidget(new_ver)
 
-        # Release notes
+        layout.addWidget(ver_card)
+
+        layout.addSpacing(Tokens.XL)
+
+        # ── Release Notes Card ────────────────────────────────────────────
         if self.manifest.release_notes:
-            notes_label = QLabel("What's New:")
-            notes_label.setStyleSheet(f"color: {_DIM}; font-size: 10px; background: transparent; border: none;")
-            layout.addWidget(notes_label)
+            notes_header = QLabel("What's New")
+            notes_header.setFont(Tokens.font(11, QFont.Weight.SemiBold))
+            notes_header.setStyleSheet(f"""
+                color: {Tokens.TEXT_SECONDARY};
+                letter-spacing: 1px;
+                background: transparent;
+                border: none;
+            """)
+            layout.addWidget(notes_header)
+
+            layout.addSpacing(Tokens.SM)
+
+            notes_card = QWidget()
+            notes_card.setStyleSheet(f"""
+                QWidget {{
+                    background: {Tokens.SURFACE_1};
+                    border: 1px solid {Tokens.BORDER};
+                    border-radius: {Tokens.R_MD}px;
+                }}
+            """)
+            notes_card_layout = QVBoxLayout(notes_card)
+            notes_card_layout.setContentsMargins(Tokens.LG, Tokens.MD, Tokens.LG, Tokens.MD)
 
             notes = QTextEdit()
             notes.setPlainText(self.manifest.release_notes[:1500])
             notes.setReadOnly(True)
-            notes.setMaximumHeight(100)
+            notes.setMaximumHeight(80)
+            notes.setFont(Tokens.font(12))
             notes.setStyleSheet(f"""
                 QTextEdit {{
-                    background-color: {_CARD};
-                    color: {_DIM};
-                    border: 1px solid {_BORDER};
-                    border-radius: 8px;
-                    padding: 10px;
-                    font-size: 10px;
+                    background: transparent;
+                    color: {Tokens.TEXT_SECONDARY};
+                    border: none;
+                    padding: 0;
+                    font-size: 12px;
+                    line-height: 1.5;
                 }}
             """)
-            layout.addWidget(notes)
+            notes_card_layout.addWidget(notes)
+            layout.addWidget(notes_card)
 
-        layout.addSpacing(4)
+        layout.addSpacing(Tokens.XL)
+        layout.addStretch()
 
-        # Buttons
+        # ── Buttons ───────────────────────────────────────────────────────
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(12)
+        btn_layout.setSpacing(Tokens.SM)
 
-        update_btn = QPushButton("⬇  Download & Install")
-        update_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        update_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {_CYAN};
-                color: #000000;
-                border: none;
-                border-radius: 8px;
-                padding: 14px 28px;
-                font-weight: bold;
-                font-size: 12px;
-            }}
-            QPushButton:hover {{
-                background-color: #00b8e0;
-            }}
-            QPushButton:pressed {{
-                background-color: #009cc0;
-            }}
-        """)
+        update_btn = AppleButton("Download & Install", style="primary")
         update_btn.clicked.connect(self._on_update)
-        btn_layout.addWidget(update_btn)
+        btn_layout.addWidget(update_btn, 2)
 
         if not self.manifest.mandatory:
-            later_btn = QPushButton("Later")
-            later_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            later_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {_CARD};
-                    color: {_DIM};
-                    border: 1px solid {_BORDER};
-                    border-radius: 8px;
-                    padding: 14px 24px;
-                    font-size: 12px;
-                }}
-                QPushButton:hover {{
-                    background-color: {_BORDER};
-                    color: {_TEXT};
-                }}
-            """)
+            later_btn = AppleButton("Later", style="secondary")
             later_btn.clicked.connect(self._on_later)
-            btn_layout.addWidget(later_btn)
+            btn_layout.addWidget(later_btn, 1)
 
         layout.addLayout(btn_layout)
 
-        layout.addLayout(btn_layout)
+        layout.addSpacing(Tokens.MD)
 
-        # View release notes link
+        # ── Release Page Link ─────────────────────────────────────────────
         if self.manifest.release_page_url:
-            link = QLabel(f'<a href="{self.manifest.release_page_url}" style="color: {_DIM};">View release page</a>')
+            link = QLabel(f'<a href="{self.manifest.release_page_url}" '
+                          f'style="color: {Tokens.TEXT_TERTIARY}; '
+                          f'text-decoration: none; font-size: 11px;">'
+                          f'View release page</a>')
             link.setOpenExternalLinks(True)
             link.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            link.setStyleSheet(f"""
+                QLabel {{
+                    background: transparent;
+                    border: none;
+                    padding: 2px;
+                }}
+            """)
             layout.addWidget(link)
 
     def _on_update(self):
         self.accept()
-        # Open download progress dialog
         dlg = DownloadProgressDialog(self.manifest, parent=self.parentWidget())
         dlg.exec()
 
@@ -244,115 +256,87 @@ class DownloadProgressDialog(QDialog):
         self._setup_ui()
 
     def _setup_ui(self):
+        from apple_design import Tokens, AppleButton, AppleProgressBar
+
         self.setWindowTitle("SONIC Apex — Updating")
-        self.setFixedSize(440, 240)
+        self.setFixedSize(440, 260)
         self.setWindowFlags(
             Qt.WindowType.Dialog
             | Qt.WindowType.WindowCloseButtonHint
         )
-        self.setStyleSheet(f"QDialog {{ background-color: {_BG}; }}")
+        self.setStyleSheet(f"""
+            QDialog {{
+                background-color: {Tokens.BG_PRIMARY};
+                border: 1px solid {Tokens.BORDER_LIGHT};
+                border-radius: {Tokens.R_XL}px;
+            }}
+        """)
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
-        layout.setContentsMargins(28, 24, 28, 24)
+        layout.setSpacing(0)
+        layout.setContentsMargins(Tokens.XXL, Tokens.XL, Tokens.XXL, Tokens.LG)
 
-        # SONIC branding
-        brand = QLabel("SONIC Apex")
-        brand.setStyleSheet(f"color: {_CYAN}; font-size: 10px; font-weight: bold; letter-spacing: 4px; background: transparent; border: none;")
-        brand.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(brand)
-
-        # Status
+        # ── Status ────────────────────────────────────────────────────────
         self.status_label = QLabel(f"Downloading v{self.manifest.version}...")
-        self.status_label.setStyleSheet(f"color: {_TEXT}; font-size: 14px; font-weight: bold; background: transparent; border: none;")
+        self.status_label.setFont(Tokens.font(16, QFont.Weight.SemiBold))
+        self.status_label.setStyleSheet(f"""
+            color: {Tokens.TEXT_PRIMARY};
+            background: transparent;
+            border: none;
+        """)
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.status_label)
 
-        # Progress bar
-        self.progress_bar = QProgressBar()
-        self.progress_bar.setRange(0, 100)
+        layout.addSpacing(Tokens.LG)
+
+        # ── Progress Bar ──────────────────────────────────────────────────
+        self.progress_bar = AppleProgressBar()
         self.progress_bar.setValue(0)
-        self.progress_bar.setFixedHeight(16)
-        self.progress_bar.setTextVisible(False)
-        self.progress_bar.setStyleSheet(f"""
-            QProgressBar {{
-                background-color: {_CARD};
-                border: 1px solid {_BORDER};
-                border-radius: 8px;
-                text-align: center;
-                color: {_TEXT};
-                font-size: 10px;
-            }}
-            QProgressBar::chunk {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 #0099cc, stop:1 #00d4ff);
-                border-radius: 7px;
-            }}
-        """)
         layout.addWidget(self.progress_bar)
 
-        # Detail label
+        layout.addSpacing(Tokens.MD)
+
+        # ── Detail Label ──────────────────────────────────────────────────
         self.detail_label = QLabel("Preparing...")
-        self.detail_label.setStyleSheet(f"color: {_DIM}; font-size: 11px; background: transparent; border: none;")
+        self.detail_label.setFont(Tokens.font(12))
+        self.detail_label.setStyleSheet(f"""
+            color: {Tokens.TEXT_SECONDARY};
+            background: transparent;
+            border: none;
+        """)
         self.detail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.detail_label)
 
-        # Buttons
-        btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(12)
+        layout.addStretch()
 
-        self.cancel_btn = QPushButton("Cancel")
-        self.cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.cancel_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {_CARD};
-                color: {_DIM};
-                border: 1px solid {_BORDER};
-                border-radius: 8px;
-                padding: 12px 24px;
-                font-size: 11px;
-            }}
-            QPushButton:hover {{
-                background-color: {_BORDER};
-                color: {_TEXT};
-            }}
-        """)
+        # ── Buttons ───────────────────────────────────────────────────────
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(Tokens.SM)
+
+        self.cancel_btn = AppleButton("Cancel", style="secondary")
         self.cancel_btn.clicked.connect(self._on_cancel)
         btn_layout.addWidget(self.cancel_btn)
 
-        self.retry_btn = QPushButton("⟳  Retry")
-        self.retry_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.retry_btn.setStyleSheet(f"""
-            QPushButton {{
-                background-color: {_CARD};
-                color: {_CYAN};
-                border: 1px solid {_CYAN};
-                border-radius: 8px;
-                padding: 12px 24px;
-                font-size: 11px;
-            }}
-            QPushButton:hover {{
-                background-color: #0a1a2a;
-            }}
-        """)
+        self.retry_btn = AppleButton("Retry", style="ghost")
         self.retry_btn.clicked.connect(self._on_retry)
         self.retry_btn.setVisible(False)
         btn_layout.addWidget(self.retry_btn)
 
-        self.install_btn = QPushButton("✓  Install Now")
-        self.install_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.install_btn = AppleButton("Install Now", style="primary")
         self.install_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: #00cc44;
-                color: #000000;
+                background: {Tokens.SUCCESS};
+                color: #ffffff;
                 border: none;
-                border-radius: 8px;
-                padding: 12px 28px;
-                font-weight: bold;
-                font-size: 11px;
+                border-radius: {Tokens.R_MD}px;
+                padding: 0 24px;
+                font-weight: 600;
             }}
-            QPushButton:hover {{
-                background-color: #00b83c;
+            QPushButton:hover {{ background: #3ce068; }}
+            QPushButton:pressed {{ background: #28b84c; }}
+            QPushButton:disabled {{
+                background: {Tokens.SURFACE_2};
+                color: {Tokens.TEXT_DISABLED};
             }}
         """)
         self.install_btn.clicked.connect(self._on_install)

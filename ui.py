@@ -1128,104 +1128,74 @@ class OnboardingWizard(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
             OnboardingWizard {{
-                background: rgba(0, 6, 10, 245);
-                border: 1px solid {C.BORDER_B};
-                border-radius: 6px;
+                background: #000000;
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 20px;
             }}
         """)
         self._step = self._STEP_ACCOUNT
         self._data = {}
         self._account_mode = "signup"
-        
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 22, 30, 22)
-        layout.setSpacing(6)
 
-        def _lbl(txt, font_size=9, bold=False, color=C.PRI,
-                 align=Qt.AlignmentFlag.AlignCenter):
+        from apple_design import Tokens, AppleStepIndicator, AppleProgressBar, fade_in
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(0)
+
+        def _lbl(txt, size=9, bold=False, color=Tokens.TEXT_SECONDARY,
+                 align=Qt.AlignmentFlag.AlignLeft):
             w = QLabel(txt)
             w.setAlignment(align)
-            w.setFont(QFont("Courier New", font_size,
-                            QFont.Weight.Bold if bold else QFont.Weight.Normal))
+            w.setFont(Tokens.font(size, QFont.Weight.Bold if bold else QFont.Weight.Normal))
             w.setStyleSheet(f"color: {color}; background: transparent;")
             return w
 
-        # Progress header
-        self._progress_lbl = _lbl("STEP 1 OF 4    ○  ○  ○  ○", 10, True)
-        layout.addWidget(self._progress_lbl)
+        self._step_indicator = AppleStepIndicator(self._STEP_COUNT)
+        self._step_indicator.set_current(0)
+        layout.addWidget(self._step_indicator)
 
-        self._step_desc = _lbl("Account Setup — Create your SONIC account to sync across devices", 9, color=C.PRI_DIM)
+        self._step_desc = _lbl("Create your SONIC account to sync across devices", 12,
+                               color=Tokens.TEXT_SECONDARY, align=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._step_desc)
-        layout.addSpacing(6)
+        layout.addSpacing(4)
 
-        # Progress bar
-        self._progress_bar = QProgressBar()
-        self._progress_bar.setRange(0, self._STEP_COUNT)
-        self._progress_bar.setValue(1)
-        self._progress_bar.setTextVisible(False)
-        self._progress_bar.setFixedHeight(3)
-        self._progress_bar.setStyleSheet(f"""
-            QProgressBar {{
-                background: {HU.FILL2};
-                border: none;
-                border-radius: 1px;
-            }}
-            QProgressBar::chunk {{
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                    stop:0 {C.PRI_DIM}, stop:0.5 {C.PRI}, stop:1 {C.PRI_VIVID});
-                border-radius: 1px;
-            }}
-        """)
+        self._progress_bar = AppleProgressBar()
+        self._progress_bar.setValue(25)
         layout.addWidget(self._progress_bar)
-        layout.addSpacing(8)
+        layout.addSpacing(16)
 
-        # Content stack
         self._stack = QStackedWidget()
         layout.addWidget(self._stack, stretch=1)
 
-        # Build step pages
         self._build_account_step()
         self._build_personal_step()
         self._build_api_step()
         self._build_prefs_step()
 
-        # Initialize account mode UI
         self._set_account_mode("signup")
 
-        # Connect account result signal
         self._account_result.connect(self._on_account_result)
 
-        # Navigation buttons
         nav_row = QHBoxLayout()
         nav_row.setSpacing(12)
 
-        self._back_btn = HudButton("\u2190  BACK",
-            cuts=[("tl", 6), ("tr", 6), ("bl", 6), ("br", 6)],
-            border=HU.BORDER, fill=HU.FILL, color=HU.DIM, font_size=9)
-        self._back_btn.setFixedHeight(32)
+        from apple_design import AppleButton
+
+        self._back_btn = AppleButton("\u2190  Back", style="secondary")
+        self._back_btn.setFixedHeight(44)
         self._back_btn.clicked.connect(self._go_back)
         self._back_btn.setVisible(False)
         nav_row.addWidget(self._back_btn, alignment=Qt.AlignmentFlag.AlignLeft)
 
-        self._next_btn = HudButton("\u25b8  CONTINUE",
-            cuts=[("tl", 6), ("tr", 6), ("bl", 6), ("br", 6)],
-            border=HU.BRIGHT, fill=HU.FILL2, color=HU.BRIGHT, font_size=9)
-        self._next_btn.setFixedHeight(32)
+        self._next_btn = AppleButton("\u25b8  Continue", style="primary")
+        self._next_btn.setFixedHeight(44)
         self._next_btn.clicked.connect(self._next_step)
         self._next_btn.setVisible(False)
         nav_row.addWidget(self._next_btn, alignment=Qt.AlignmentFlag.AlignRight)
 
-        self._skip_btn = QPushButton("Skip setup")
-        self._skip_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._skip_btn.setStyleSheet(f"""
-            QPushButton {{
-                color: {C.TEXT_DIM}; background: transparent; border: none;
-                font-size: 8px; text-decoration: none;
-            }}
-            QPushButton:hover {{
-                color: {C.TEXT_MED}; text-decoration: underline;
-            }}
-        """)
+        self._skip_btn = AppleButton("Skip setup", style="ghost")
+        self._skip_btn.setFixedHeight(44)
         self._skip_btn.clicked.connect(self._on_skip)
         nav_row.addWidget(self._skip_btn, alignment=Qt.AlignmentFlag.AlignRight)
 
@@ -1234,13 +1204,11 @@ class OnboardingWizard(QWidget):
     def keyPressEvent(self, event):
         """Handle Enter/Return to advance steps or finish."""
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
-            # Don't advance if focused on an input field (let it handle its own Enter)
             focused = self.focusWidget()
             from PyQt6.QtWidgets import QLineEdit, QTextEdit
             if isinstance(focused, (QLineEdit, QTextEdit)):
                 return super().keyPressEvent(event)
             if self._step == 0:
-                # Account step has its own button
                 self._on_account_action()
             elif self._next_btn.isVisible():
                 self._next_step()
@@ -1251,145 +1219,118 @@ class OnboardingWizard(QWidget):
 
     def _build_account_step(self):
         """Step 1: Account creation (signup/login)."""
+        from apple_design import Tokens, AppleButton, AppleInput, fade_in
+
         page = QWidget()
         lay = QVBoxLayout(page)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(6)
+        lay.setSpacing(12)
 
-        def _lbl(txt, font_size=9, bold=False, color=C.PRI,
+        def _lbl(txt, size=11, bold=False, color=Tokens.TEXT_SECONDARY,
                  align=Qt.AlignmentFlag.AlignLeft):
             w = QLabel(txt)
             w.setAlignment(align)
-            w.setFont(QFont("Courier New", font_size,
-                            QFont.Weight.Bold if bold else QFont.Weight.Normal))
+            w.setFont(Tokens.font(size, QFont.Weight.Bold if bold else QFont.Weight.Normal))
             w.setStyleSheet(f"color: {color}; background: transparent;")
             return w
 
-        # Account mode selector
         mode_row = QHBoxLayout()
         mode_row.setSpacing(8)
+
         self._account_signup_btn = QPushButton("Create Account")
         self._account_signup_btn.setCheckable(True)
         self._account_signup_btn.setChecked(True)
         self._account_signup_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._account_signup_btn.setFixedHeight(40)
+        self._account_signup_btn.setFont(Tokens.font(13, QFont.Weight.Medium))
         self._account_signup_btn.setStyleSheet(f"""
             QPushButton {{
-                color: {C.PRI_DIM}; background: {HU.FILL2}; border: 1px solid {C.BORDER};
-                border-radius: 4px; padding: 8px 16px; font-size: 9px;
+                color: {Tokens.TEXT_PRIMARY}; background: {Tokens.SURFACE_2};
+                border: 1px solid {Tokens.BORDER_LIGHT};
+                border-radius: 12px; padding: 0 20px;
             }}
             QPushButton:checked {{
-                color: {HU.BRIGHT}; background: {HU.FILL2}; border: 1px solid {HU.BRIGHT};
+                background: {Tokens.ACCENT}; color: #ffffff;
+                border: 1px solid {Tokens.ACCENT};
+            }}
+            QPushButton:hover {{
+                border-color: rgba(255,255,255,0.18);
             }}
         """)
         self._account_signup_btn.clicked.connect(lambda: self._set_account_mode("signup"))
-        mode_row.addWidget(self._account_signup_btn)
+        mode_row.addWidget(self._account_signup_btn, stretch=1)
 
         self._account_login_btn = QPushButton("Sign In")
         self._account_login_btn.setCheckable(True)
         self._account_login_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._account_login_btn.setFixedHeight(40)
+        self._account_login_btn.setFont(Tokens.font(13, QFont.Weight.Medium))
         self._account_login_btn.setStyleSheet(f"""
             QPushButton {{
-                color: {C.PRI_DIM}; background: {HU.FILL2}; border: 1px solid {C.BORDER};
-                border-radius: 4px; padding: 8px 16px; font-size: 9px;
+                color: {Tokens.TEXT_PRIMARY}; background: {Tokens.SURFACE_2};
+                border: 1px solid {Tokens.BORDER_LIGHT};
+                border-radius: 12px; padding: 0 20px;
             }}
             QPushButton:checked {{
-                color: {HU.BRIGHT}; background: {HU.FILL2}; border: 1px solid {HU.BRIGHT};
+                background: {Tokens.ACCENT}; color: #ffffff;
+                border: 1px solid {Tokens.ACCENT};
+            }}
+            QPushButton:hover {{
+                border-color: rgba(255,255,255,0.18);
             }}
         """)
         self._account_login_btn.clicked.connect(lambda: self._set_account_mode("login"))
-        mode_row.addWidget(self._account_login_btn)
-        mode_row.addStretch()
+        mode_row.addWidget(self._account_login_btn, stretch=1)
         lay.addLayout(mode_row)
+
         lay.addSpacing(8)
 
-        # Auth form (embedded AuthOverlay-style)
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"color: {C.BORDER};")
-        lay.addWidget(sep)
-        lay.addSpacing(4)
-
-        self._auth_email = HudLineEdit()
-        self._auth_email.setPlaceholderText("you@example.com")
-        self._auth_email.setFont(QFont("Courier New", 10))
-        self._auth_email.setFixedHeight(32)
-        lay.addWidget(_lbl("EMAIL", 8, color=C.TEXT_DIM))
+        lay.addWidget(_lbl("EMAIL", 11, bold=True, color=Tokens.TEXT_TERTIARY))
+        self._auth_email = AppleInput("you@example.com")
         lay.addWidget(self._auth_email)
-        lay.addSpacing(6)
 
-        self._auth_pass = HudLineEdit()
+        lay.addWidget(_lbl("PASSWORD", 11, bold=True, color=Tokens.TEXT_TERTIARY))
+        self._auth_pass = AppleInput("\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022")
         self._auth_pass.setEchoMode(QLineEdit.EchoMode.Password)
-        self._auth_pass.setPlaceholderText("\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022")
-        self._auth_pass.setFont(QFont("Courier New", 10))
-        self._auth_pass.setFixedHeight(32)
-        lay.addWidget(_lbl("PASSWORD", 8, color=C.TEXT_DIM))
         lay.addWidget(self._auth_pass)
-        pw_hint = _lbl("6+ characters", 7, color=C.TEXT_DIM)
-        lay.addWidget(pw_hint)
-        lay.addSpacing(6)
 
-        # Confirm password (signup only)
+        pw_hint = _lbl("6+ characters", 11, color=Tokens.TEXT_TERTIARY)
+        lay.addWidget(pw_hint)
+
         self._auth_confirm_row = QWidget()
         confirm_lay = QVBoxLayout(self._auth_confirm_row)
         confirm_lay.setContentsMargins(0, 0, 0, 0)
-        confirm_lay.setSpacing(4)
-        self._auth_confirm = HudLineEdit()
+        confirm_lay.setSpacing(8)
+        confirm_lay.addWidget(_lbl("CONFIRM PASSWORD", 11, bold=True, color=Tokens.TEXT_TERTIARY))
+        self._auth_confirm = AppleInput("\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022")
         self._auth_confirm.setEchoMode(QLineEdit.EchoMode.Password)
-        self._auth_confirm.setPlaceholderText("\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022")
-        self._auth_confirm.setFont(QFont("Courier New", 10))
-        self._auth_confirm.setFixedHeight(32)
-        confirm_lay.addWidget(_lbl("CONFIRM PASSWORD", 8, color=C.TEXT_DIM))
         confirm_lay.addWidget(self._auth_confirm)
         lay.addWidget(self._auth_confirm_row)
-        lay.addSpacing(6)
 
-        # Error label
-        self._auth_error = _lbl("", 8, color=C.RED)
+        self._auth_error = _lbl("", 12, color=Tokens.ERROR)
         self._auth_error.setStyleSheet(f"""
-            color: {C.RED};
-            background: {C.RED_DIM};
-            border: 1px solid {C.RED};
-            border-radius: 4px;
-            padding: 6px 10px;
-            min-height: 14px;
+            color: {Tokens.ERROR};
+            background: rgba(255, 69, 58, 0.1);
+            border: 1px solid rgba(255, 69, 58, 0.25);
+            border-radius: 10px;
+            padding: 10px 14px;
+            min-height: 18px;
         """)
         lay.addWidget(self._auth_error)
-        lay.addSpacing(4)
 
-        # Action button
-        self._auth_action = HudButton("\u25b8  CREATE ACCOUNT",
-            cuts=[("tl", 6), ("tr", 6), ("bl", 6), ("br", 6)],
-            border=HU.BRIGHT, fill=HU.FILL2, color=HU.BRIGHT, font_size=10)
-        self._auth_action.setFixedHeight(36)
+        self._auth_action = AppleButton("\u25b8  Create Account", style="primary")
+        self._auth_action.setFixedHeight(48)
         self._auth_action.clicked.connect(self._on_account_action)
         lay.addWidget(self._auth_action)
 
-        # Google Sign-In button
-        self._google_btn = QPushButton("\u25b2  Continue with Google")
-        self._google_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._google_btn.setFixedHeight(32)
         from auth import get_auth
         google_enabled = get_auth().is_google_configured()
+
+        self._google_btn = AppleButton("\u25b2  Continue with Google", style="secondary")
+        self._google_btn.setFixedHeight(48)
         self._google_btn.setEnabled(google_enabled)
         if not google_enabled:
             self._google_btn.setToolTip("Google Sign-In not configured")
-        self._google_btn.setStyleSheet(f"""
-            QPushButton {{
-                color: {C.TEXT}; background: {HU.FILL2}; border: 1px solid {C.BORDER};
-                border-radius: 4px; font-size: 9px; padding: 6px 12px;
-            }}
-            QPushButton:hover {{
-                border: 1px solid {C.PRI}; color: {C.PRI};
-                background: {C.PRI_SOFT};
-            }}
-            QPushButton:pressed {{
-                border: 1px solid {C.PRI_VIVID}; color: {C.PRI_VIVID};
-                background: {C.PRI_GHO};
-            }}
-            QPushButton:disabled {{
-                color: {C.TEXT_DIM}; background: {HU.FILL}; border: 1px solid {C.BORDER_DIM};
-            }}
-        """)
         self._google_btn.clicked.connect(self._on_google_action)
         lay.addWidget(self._google_btn)
 
@@ -1398,70 +1339,43 @@ class OnboardingWizard(QWidget):
 
     def _build_personal_step(self):
         """Step 2: Personal information."""
+        from apple_design import Tokens, AppleButton, AppleInput, fade_in
+
         page = QWidget()
         lay = QVBoxLayout(page)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(6)
+        lay.setSpacing(12)
 
-        def _lbl(txt, font_size=9, bold=False, color=C.PRI,
+        def _lbl(txt, size=11, bold=False, color=Tokens.TEXT_SECONDARY,
                  align=Qt.AlignmentFlag.AlignLeft):
             w = QLabel(txt)
             w.setAlignment(align)
-            w.setFont(QFont("Courier New", font_size,
-                            QFont.Weight.Bold if bold else QFont.Weight.Normal))
+            w.setFont(Tokens.font(size, QFont.Weight.Bold if bold else QFont.Weight.Normal))
             w.setStyleSheet(f"color: {color}; background: transparent;")
             return w
 
-        lay.addWidget(_lbl("PERSONAL INFORMATION", 9, bold=True, color=C.ACC2))
-        lay.addWidget(_lbl("Help SONIC address you properly", 8, color=C.TEXT_DIM))
-        lay.addSpacing(4)
+        lay.addWidget(_lbl("Personal Information", 14, bold=True, color=Tokens.TEXT_PRIMARY))
+        lay.addWidget(_lbl("Help SONIC address you properly", 12, color=Tokens.TEXT_SECONDARY))
+        lay.addSpacing(8)
 
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"color: {C.BORDER};")
-        lay.addWidget(sep)
-        lay.addSpacing(4)
-
-        # Full name
-        lay.addWidget(_lbl("FULL NAME", 8, color=C.TEXT_DIM))
-        self._personal_name = HudLineEdit()
-        self._personal_name.setPlaceholderText("Your full name")
-        self._personal_name.setFont(QFont("Courier New", 10))
-        self._personal_name.setFixedHeight(32)
+        lay.addWidget(_lbl("FULL NAME", 11, bold=True, color=Tokens.TEXT_TERTIARY))
+        self._personal_name = AppleInput("Your full name")
         lay.addWidget(self._personal_name)
-        lay.addSpacing(6)
 
-        # Phone
-        lay.addWidget(_lbl("PHONE NUMBER", 8, color=C.TEXT_DIM))
-        self._personal_phone = HudLineEdit()
-        self._personal_phone.setPlaceholderText("+1 555 123 4567")
-        self._personal_phone.setFont(QFont("Courier New", 10))
-        self._personal_phone.setFixedHeight(32)
+        lay.addWidget(_lbl("PHONE NUMBER", 11, bold=True, color=Tokens.TEXT_TERTIARY))
+        self._personal_phone = AppleInput("+1 555 123 4567")
         lay.addWidget(self._personal_phone)
-        lay.addSpacing(6)
 
-        # Location
-        lay.addWidget(_lbl("LOCATION (city, country)", 8, color=C.TEXT_DIM))
-        self._personal_location = HudLineEdit()
-        self._personal_location.setPlaceholderText("San Francisco, USA")
-        self._personal_location.setFont(QFont("Courier New", 10))
-        self._personal_location.setFixedHeight(32)
+        lay.addWidget(_lbl("LOCATION (city, country)", 11, bold=True, color=Tokens.TEXT_TERTIARY))
+        self._personal_location = AppleInput("San Francisco, USA")
         lay.addWidget(self._personal_location)
-        lay.addSpacing(6)
 
-        # Timezone
-        lay.addWidget(_lbl("TIMEZONE", 8, color=C.TEXT_DIM))
-        self._personal_timezone = HudLineEdit()
-        self._personal_timezone.setPlaceholderText("America/Los_Angeles")
-        self._personal_timezone.setFont(QFont("Courier New", 10))
-        self._personal_timezone.setFixedHeight(32)
+        lay.addWidget(_lbl("TIMEZONE", 11, bold=True, color=Tokens.TEXT_TERTIARY))
+        self._personal_timezone = AppleInput("America/Los_Angeles")
         lay.addWidget(self._personal_timezone)
-        lay.addSpacing(6)
 
-        # Auto-detect timezone
-        auto_tz_btn = HudButton("\U0001f30d  Auto-detect my timezone",
-            cuts=[("tl", 5), ("tr", 5), ("bl", 5), ("br", 5)],
-            border=HU.BORDER, fill=HU.FILL, color=HU.DIM, font_size=8)
+        auto_tz_btn = AppleButton("\U0001f30d  Auto-detect my timezone", style="ghost")
+        auto_tz_btn.setFixedHeight(36)
         auto_tz_btn.clicked.connect(self._auto_detect_timezone)
         lay.addWidget(auto_tz_btn, alignment=Qt.AlignmentFlag.AlignLeft)
 
@@ -1470,52 +1384,36 @@ class OnboardingWizard(QWidget):
 
     def _build_api_step(self):
         """Step 3: API Keys."""
+        from apple_design import Tokens, AppleButton, AppleInput, fade_in
+
         page = QWidget()
         lay = QVBoxLayout(page)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(6)
+        lay.setSpacing(12)
 
-        def _lbl(txt, font_size=9, bold=False, color=C.PRI,
+        def _lbl(txt, size=11, bold=False, color=Tokens.TEXT_SECONDARY,
                  align=Qt.AlignmentFlag.AlignLeft):
             w = QLabel(txt)
             w.setAlignment(align)
-            w.setFont(QFont("Courier New", font_size,
-                            QFont.Weight.Bold if bold else QFont.Weight.Normal))
+            w.setFont(Tokens.font(size, QFont.Weight.Bold if bold else QFont.Weight.Normal))
             w.setStyleSheet(f"color: {color}; background: transparent;")
             return w
 
-        lay.addWidget(_lbl("API KEYS", 9, bold=True, color=C.ACC2))
-        lay.addWidget(_lbl("Add API keys for external services (optional)", 8, color=C.TEXT_DIM))
-        lay.addSpacing(4)
+        lay.addWidget(_lbl("API Keys", 14, bold=True, color=Tokens.TEXT_PRIMARY))
+        lay.addWidget(_lbl("Add API keys for external services (optional)", 12, color=Tokens.TEXT_SECONDARY))
+        lay.addSpacing(8)
 
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"color: {C.BORDER};")
-        lay.addWidget(sep)
-        lay.addSpacing(4)
-
-        # Gemini API Key
-        lay.addWidget(_lbl("GEMINI API KEY", 8, color=C.TEXT_DIM))
-        self._api_gemini = HudLineEdit()
+        lay.addWidget(_lbl("GEMINI API KEY", 11, bold=True, color=Tokens.TEXT_TERTIARY))
+        self._api_gemini = AppleInput("AIzaSy... (from Google AI Studio)")
         self._api_gemini.setEchoMode(QLineEdit.EchoMode.Password)
-        self._api_gemini.setPlaceholderText("AIzaSy... (from Google AI Studio)")
-        self._api_gemini.setFont(QFont("Courier New", 10))
-        self._api_gemini.setFixedHeight(32)
         lay.addWidget(self._api_gemini)
-        lay.addSpacing(6)
 
-        # OpenAI API Key
-        lay.addWidget(_lbl("OPENAI API KEY", 8, color=C.TEXT_DIM))
-        self._api_openai = HudLineEdit()
+        lay.addWidget(_lbl("OPENAI API KEY", 11, bold=True, color=Tokens.TEXT_TERTIARY))
+        self._api_openai = AppleInput("sk-... (from platform.openai.com)")
         self._api_openai.setEchoMode(QLineEdit.EchoMode.Password)
-        self._api_openai.setPlaceholderText("sk-... (from platform.openai.com)")
-        self._api_openai.setFont(QFont("Courier New", 10))
-        self._api_openai.setFixedHeight(32)
         lay.addWidget(self._api_openai)
-        lay.addSpacing(6)
 
-        # Other keys hint
-        hint = _lbl("More keys can be added later in Settings \u2192 API Keys", 7, color=C.TEXT_DIM)
+        hint = _lbl("More keys can be added later in Settings \u2192 API Keys", 11, color=Tokens.TEXT_TERTIARY)
         lay.addWidget(hint)
 
         lay.addStretch()
@@ -1523,48 +1421,53 @@ class OnboardingWizard(QWidget):
 
     def _build_prefs_step(self):
         """Step 4: Preferences."""
+        from apple_design import Tokens, AppleButton, AppleInput, fade_in
+
         page = QWidget()
         lay = QVBoxLayout(page)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(6)
+        lay.setSpacing(12)
 
-        def _lbl(txt, font_size=9, bold=False, color=C.PRI,
+        def _lbl(txt, size=11, bold=False, color=Tokens.TEXT_SECONDARY,
                  align=Qt.AlignmentFlag.AlignLeft):
             w = QLabel(txt)
             w.setAlignment(align)
-            w.setFont(QFont("Courier New", font_size,
-                            QFont.Weight.Bold if bold else QFont.Weight.Normal))
+            w.setFont(Tokens.font(size, QFont.Weight.Bold if bold else QFont.Weight.Normal))
             w.setStyleSheet(f"color: {color}; background: transparent;")
             return w
 
-        lay.addWidget(_lbl("PREFERENCES", 9, bold=True, color=C.ACC2))
-        lay.addWidget(_lbl("Customize your SONIC experience", 8, color=C.TEXT_DIM))
-        lay.addSpacing(4)
+        lay.addWidget(_lbl("Preferences", 14, bold=True, color=Tokens.TEXT_PRIMARY))
+        lay.addWidget(_lbl("Customize your SONIC experience", 12, color=Tokens.TEXT_SECONDARY))
+        lay.addSpacing(8)
 
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet(f"color: {C.BORDER};")
-        lay.addWidget(sep)
-        lay.addSpacing(4)
-
-        # Theme
-        lay.addWidget(_lbl("UI THEME", 8, color=C.TEXT_DIM))
+        lay.addWidget(_lbl("UI THEME", 11, bold=True, color=Tokens.TEXT_TERTIARY))
         theme_row = QHBoxLayout()
-        theme_row.setSpacing(8)
+        theme_row.setSpacing(0)
+
         self._pref_theme_dark = QPushButton("Dark")
         self._pref_theme_dark.setCheckable(True)
         self._pref_theme_dark.setChecked(True)
         self._pref_theme_dark.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._pref_theme_dark.setFixedHeight(38)
+        self._pref_theme_dark.setFont(Tokens.font(13, QFont.Weight.Medium))
         self._pref_theme_dark.setStyleSheet(f"""
             QPushButton {{
-                color: {C.PRI_DIM}; background: {HU.FILL2}; border: 1px solid {C.BORDER};
-                border-radius: 4px; padding: 6px 16px; font-size: 9px;
+                color: {Tokens.TEXT_PRIMARY}; background: {Tokens.SURFACE_2};
+                border: 1px solid {Tokens.BORDER_LIGHT};
+                border-radius: 0px; padding: 0 16px;
+            }}
+            QPushButton:first {{
+                border-radius: 10px 0 0 10px;
+            }}
+            QPushButton:last {{
+                border-radius: 0 10px 10px 0;
             }}
             QPushButton:checked {{
-                color: {HU.BRIGHT}; background: {HU.FILL2}; border: 1px solid {HU.BRIGHT};
+                background: {Tokens.ACCENT}; color: #ffffff;
+                border-color: {Tokens.ACCENT};
             }}
             QPushButton:hover {{
-                border: 1px solid {C.PRI};
+                border-color: rgba(255,255,255,0.18);
             }}
         """)
         self._pref_theme_dark.clicked.connect(lambda: self._set_theme("dark"))
@@ -1573,16 +1476,20 @@ class OnboardingWizard(QWidget):
         self._pref_theme_light = QPushButton("Light")
         self._pref_theme_light.setCheckable(True)
         self._pref_theme_light.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._pref_theme_light.setFixedHeight(38)
+        self._pref_theme_light.setFont(Tokens.font(13, QFont.Weight.Medium))
         self._pref_theme_light.setStyleSheet(f"""
             QPushButton {{
-                color: {C.PRI_DIM}; background: {HU.FILL2}; border: 1px solid {C.BORDER};
-                border-radius: 4px; padding: 6px 16px; font-size: 9px;
+                color: {Tokens.TEXT_PRIMARY}; background: {Tokens.SURFACE_2};
+                border: 1px solid {Tokens.BORDER_LIGHT};
+                border-radius: 0px; padding: 0 16px;
             }}
             QPushButton:checked {{
-                color: {HU.BRIGHT}; background: {HU.FILL2}; border: 1px solid {HU.BRIGHT};
+                background: {Tokens.ACCENT}; color: #ffffff;
+                border-color: {Tokens.ACCENT};
             }}
             QPushButton:hover {{
-                border: 1px solid {C.PRI};
+                border-color: rgba(255,255,255,0.18);
             }}
         """)
         self._pref_theme_light.clicked.connect(lambda: self._set_theme("light"))
@@ -1591,73 +1498,62 @@ class OnboardingWizard(QWidget):
         self._pref_theme_scifi = QPushButton("\u2694  Sci-Fi Gold")
         self._pref_theme_scifi.setCheckable(True)
         self._pref_theme_scifi.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._pref_theme_scifi.setFixedHeight(38)
+        self._pref_theme_scifi.setFont(Tokens.font(13, QFont.Weight.Medium))
         self._pref_theme_scifi.setStyleSheet(f"""
             QPushButton {{
-                color: {C.PRI_DIM}; background: {HU.FILL2}; border: 1px solid {C.BORDER};
-                border-radius: 4px; padding: 6px 16px; font-size: 9px;
+                color: {Tokens.TEXT_PRIMARY}; background: {Tokens.SURFACE_2};
+                border: 1px solid {Tokens.BORDER_LIGHT};
+                border-radius: 0px; padding: 0 16px;
             }}
             QPushButton:checked {{
-                color: #ffd700; background: #1a1a08; border: 1px solid #ffd700;
+                color: #ffd700; background: rgba(255, 215, 0, 0.12);
+                border-color: rgba(255, 215, 0, 0.4);
             }}
             QPushButton:hover {{
-                border: 1px solid #ffd700;
+                border-color: rgba(255, 215, 0, 0.3);
             }}
         """)
         self._pref_theme_scifi.clicked.connect(lambda: self._set_theme("scifi"))
         theme_row.addWidget(self._pref_theme_scifi)
 
-        theme_row.addStretch()
         lay.addLayout(theme_row)
         lay.addSpacing(12)
 
-        # Voice
-        lay.addWidget(_lbl("VOICE LANGUAGE", 8, color=C.TEXT_DIM))
-        self._pref_voice = HudLineEdit()
-        self._pref_voice.setPlaceholderText("en-US  (or hi-IN, es-ES, etc.)")
-        self._pref_voice.setFont(QFont("Courier New", 10))
-        self._pref_voice.setFixedHeight(32)
+        lay.addWidget(_lbl("VOICE LANGUAGE", 11, bold=True, color=Tokens.TEXT_TERTIARY))
+        self._pref_voice = AppleInput("en-US  (or hi-IN, es-ES, etc.)")
         self._pref_voice.setText("en-US")
         lay.addWidget(self._pref_voice)
-        lay.addSpacing(6)
 
-        # Assistant name
-        lay.addWidget(_lbl("ASSISTANT NAME", 8, color=C.TEXT_DIM))
-        self._pref_assistant_name = HudLineEdit()
-        self._pref_assistant_name.setPlaceholderText("SONIC")
-        self._pref_assistant_name.setFont(QFont("Courier New", 10))
-        self._pref_assistant_name.setFixedHeight(32)
+        lay.addWidget(_lbl("ASSISTANT NAME", 11, bold=True, color=Tokens.TEXT_TERTIARY))
+        self._pref_assistant_name = AppleInput("SONIC")
         self._pref_assistant_name.setText("SONIC")
         lay.addWidget(self._pref_assistant_name)
-        lay.addSpacing(6)
 
-        # Your name
-        lay.addWidget(_lbl("YOUR NAME (how SONIC addresses you)", 8, color=C.TEXT_DIM))
-        self._pref_user_name = HudLineEdit()
-        self._pref_user_name.setPlaceholderText("Captain / Sir / Your Name")
-        self._pref_user_name.setFont(QFont("Courier New", 10))
-        self._pref_user_name.setFixedHeight(32)
+        lay.addWidget(_lbl("YOUR NAME (how SONIC addresses you)", 11, bold=True, color=Tokens.TEXT_TERTIARY))
+        self._pref_user_name = AppleInput("Captain / Sir / Your Name")
         lay.addWidget(self._pref_user_name)
-        lay.addSpacing(6)
 
-        # Language (for AI responses)
-        lay.addWidget(_lbl("AI RESPONSE LANGUAGE", 8, color=C.TEXT_DIM))
-        self._pref_language = HudLineEdit()
-        self._pref_language.setPlaceholderText("English / Roman Urdu / Urdu / Hindi / etc.")
-        self._pref_language.setFont(QFont("Courier New", 10))
-        self._pref_language.setFixedHeight(32)
+        lay.addWidget(_lbl("AI RESPONSE LANGUAGE", 11, bold=True, color=Tokens.TEXT_TERTIARY))
+        self._pref_language = AppleInput("English / Roman Urdu / Urdu / Hindi / etc.")
         lay.addWidget(self._pref_language)
-        lay.addSpacing(6)
 
-        # Custom instructions
-        lay.addWidget(_lbl("CUSTOM INSTRUCTIONS (how SONIC should behave)", 8, color=C.TEXT_DIM))
+        lay.addWidget(_lbl("CUSTOM INSTRUCTIONS (how SONIC should behave)", 11, bold=True, color=Tokens.TEXT_TERTIARY))
         self._pref_instructions = QTextEdit()
         self._pref_instructions.setPlaceholderText("e.g. Always respond in Roman Urdu. Be concise. Use emojis sparingly.")
-        self._pref_instructions.setFont(QFont("Courier New", 9))
-        self._pref_instructions.setFixedHeight(60)
+        self._pref_instructions.setFont(Tokens.font(13))
+        self._pref_instructions.setFixedHeight(72)
         self._pref_instructions.setStyleSheet(f"""
             QTextEdit {{
-                color: {C.TEXT}; background: {HU.FILL2}; border: 1px solid {C.BORDER};
-                border-radius: 4px; padding: 6px;
+                color: {Tokens.TEXT_PRIMARY};
+                background: {Tokens.SURFACE_1};
+                border: 1px solid {Tokens.BORDER};
+                border-radius: {Tokens.R_SM}px;
+                padding: 10px 12px;
+            }}
+            QTextEdit:focus {{
+                border: 1px solid {Tokens.ACCENT};
+                background: {Tokens.SURFACE_2};
             }}
         """)
         lay.addWidget(self._pref_instructions)
@@ -1669,29 +1565,35 @@ class OnboardingWizard(QWidget):
 
     def _update_step_ui(self):
         """Update UI for current step with smooth fade transition."""
-        step_names = [
-            ("ACCOUNT SETUP", "Create your SONIC account to sync across devices"),
-            ("PERSONAL INFO", "Help SONIC address you properly"),
-            ("API KEYS", "Add API keys for external services"),
-            ("PREFERENCES", "Customize your SONIC experience"),
-        ]
-        title, desc = step_names[self._step]
-        dots = "  ".join(["●" if i <= self._step else "○" for i in range(self._STEP_COUNT)])
-        self._progress_lbl.setText(f"STEP {self._step + 1} OF {self._STEP_COUNT}    {dots}")
-        self._step_desc.setText(f"{title} — {desc}")
-        self._progress_bar.setValue(self._step + 1)
+        from apple_design import Tokens, fade_in
 
-        # Fade transition between steps
+        step_names = [
+            ("Create your SONIC account to sync across devices"),
+            ("Help SONIC address you properly"),
+            ("Add API keys for external services"),
+            ("Customize your SONIC experience"),
+        ]
+        desc = step_names[self._step]
+        self._step_desc.setText(desc)
+        self._progress_bar.setValue(int((self._step + 1) / self._STEP_COUNT * 100))
+        self._step_indicator.set_current(self._step)
+
         self._stack.setGraphicsEffect(None)
         self._stack.setCurrentIndex(self._step)
         self._back_btn.setVisible(self._step > 0)
 
-        # Next/Finish button (hidden on step 0 which has its own action button)
         if self._step > 0:
             self._next_btn.setVisible(True)
-            self._next_btn.setText("\u25b8  FINISH" if self._step == self._STEP_COUNT - 1 else "\u25b8  CONTINUE")
+            if self._step == self._STEP_COUNT - 1:
+                self._next_btn.setText("\u25b8  Finish")
+            else:
+                self._next_btn.setText("\u25b8  Continue")
         else:
             self._next_btn.setVisible(False)
+
+        page = self._stack.currentWidget()
+        if page:
+            fade_in(page, duration=250)
 
     def _set_theme(self, theme: str):
         """Handle theme selection in preferences step."""
@@ -1722,12 +1624,12 @@ class OnboardingWizard(QWidget):
             self._account_signup_btn.setChecked(True)
             self._account_login_btn.setChecked(False)
             self._auth_confirm_row.setVisible(True)
-            self._auth_action.setText("\u25b8  CREATE ACCOUNT")
+            self._auth_action.setText("\u25b8  Create Account")
         else:
             self._account_signup_btn.setChecked(False)
             self._account_login_btn.setChecked(True)
             self._auth_confirm_row.setVisible(False)
-            self._auth_action.setText("\u25b8  SIGN IN")
+            self._auth_action.setText("\u25b8  Sign In")
 
     def _on_account_action(self):
         # Prevent double-click / concurrent operations
@@ -1755,7 +1657,7 @@ class OnboardingWizard(QWidget):
                 return
 
         self._auth_action.setEnabled(False)
-        self._auth_action.setText("  CREATING ACCOUNT..." if mode == "signup" else "  SIGNING IN...")
+        self._auth_action.setText("  Creating Account..." if mode == "signup" else "  Signing In...")
         self._auth_error.setText("")
 
         def _run():
@@ -1787,7 +1689,7 @@ class OnboardingWizard(QWidget):
         def _watchdog():
             if thread.is_alive():
                 self._auth_action.setEnabled(True)
-                self._auth_action.setText("\u25b8  CREATE ACCOUNT" if mode == "signup" else "\u25b8  SIGN IN")
+                self._auth_action.setText("\u25b8  Create Account" if mode == "signup" else "\u25b8  Sign In")
                 self._auth_error.setText("Operation timed out. Please try again.")
         QTimer.singleShot(30000, _watchdog)  # 30 second timeout
 
@@ -1795,7 +1697,7 @@ class OnboardingWizard(QWidget):
         self._account_operation_in_progress = False
         self._auth_action.setEnabled(True)
         mode = getattr(self, '_account_mode', 'signup')
-        self._auth_action.setText("\u25b8  CREATE ACCOUNT" if mode == "signup" else "\u25b8  SIGN IN")
+        self._auth_action.setText("\u25b8  Create Account" if mode == "signup" else "\u25b8  Sign In")
         if result.get("success") and uid:
             self._data["email"] = email
             self._data["user_id"] = uid
@@ -1910,7 +1812,7 @@ class OnboardingWizard(QWidget):
         """Collect all data and emit completed signal."""
         # Show loading state on the FINISH button
         self._next_btn.setEnabled(False)
-        self._next_btn.setText("  PROCESSING...")
+        self._next_btn.setText("  Processing...")
 
         # Collect personal info
         self._data["full_name"] = self._personal_name.text().strip()
@@ -4212,15 +4114,15 @@ class MainWindow(QMainWindow):
 
     def _do_logout(self):
         """Show confirmation then logout."""
-        from PyQt6.QtWidgets import QMessageBox
-        reply = QMessageBox.question(
-            self,
+        from apple_design import AppleDialog
+        dlg = AppleDialog(
             "Logout",
             "Are you sure you want to logout?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            QMessageBox.StandardButton.No,
+            buttons=[("Cancel", "secondary"), ("Logout", "destructive")],
+            parent=self,
         )
-        if reply != QMessageBox.StandardButton.Yes:
+        dlg.exec()
+        if dlg.get_result() != "Logout":
             return
         try:
             from auth import get_auth
@@ -4304,7 +4206,7 @@ class MainWindow(QMainWindow):
 
     def _check_for_updates(self):
         """Manual update check from settings."""
-        from PyQt6.QtWidgets import QMessageBox
+        from apple_design import AppleDialog
         try:
             from updater import get_update_manager
             from version import APP_VERSION
@@ -4313,25 +4215,34 @@ class MainWindow(QMainWindow):
             manifest = manager.check_for_update(force=True)
 
             if manifest is None:
-                QMessageBox.information(
-                    self, "SONIC AI",
-                    f"You're up to date!\nCurrent version: v{APP_VERSION}"
+                dlg = AppleDialog(
+                    "SONIC Apex",
+                    f"You're up to date!\nCurrent version: v{APP_VERSION}",
+                    buttons=[("OK", "primary")],
+                    parent=self,
                 )
+                dlg.exec()
                 return
 
             from updater.ui import UpdatePopup
             popup = UpdatePopup(manifest, parent=self)
             popup.show()
         except ImportError:
-            QMessageBox.information(
-                self, "SONIC AI",
-                "Update system not available."
+            dlg = AppleDialog(
+                "SONIC Apex",
+                "Update system not available.",
+                buttons=[("OK", "primary")],
+                parent=self,
             )
+            dlg.exec()
         except Exception as e:
-            QMessageBox.warning(
-                self, "SONIC AI",
-                f"Update check failed: {e}"
+            dlg = AppleDialog(
+                "SONIC Apex",
+                f"Update check failed: {e}",
+                buttons=[("OK", "secondary")],
+                parent=self,
             )
+            dlg.exec()
 
     def _open_plugin_manager(self):
         plugins = self.get_plugins() if self.get_plugins else []

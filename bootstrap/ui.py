@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 from .detector import Status, DepResult, detect_all, get_system_info
 from .state import BootstrapState
 from .installer import DependencyInstaller, InstallResult
+from apple_design import Tokens, AppleButton, AppleCard, AppleProgressBar, fade_in, slide_up, create_glow
 
 
 # ── Animation States ──────────────────────────────────────────────────────
@@ -457,12 +458,12 @@ class SonicBootUI(QWidget):
         self.setWindowTitle("SONIC Apex")
         self.setMinimumSize(680, 560)
         self.setMaximumSize(680, 560)
-        self.setStyleSheet("""
-            QWidget {
-                background: #05070a;
-                color: #c8cdd4;
-                font-family: 'Segoe UI', sans-serif;
-            }
+        self.setStyleSheet(f"""
+            QWidget {{
+                background: {Tokens.BG_PRIMARY};
+                color: {Tokens.TEXT_PRIMARY};
+                font-family: {Tokens.FONT};
+            }}
         """)
 
         self._build_ui()
@@ -470,10 +471,10 @@ class SonicBootUI(QWidget):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(50, 35, 50, 35)
-        layout.setSpacing(8)
+        layout.setContentsMargins(60, 40, 60, 40)
+        layout.setSpacing(12)
 
-        # ── Cinematic Boot Animation (replaces old IntelligenceCore) ────
+        # ── Cinematic Boot Animation ─────────────────────────────────────
         from .cinematic import SonicBootAnimation
         self._cinematic = SonicBootAnimation()
         self._cinematic.boot_complete.connect(self._on_cinematic_complete)
@@ -482,26 +483,26 @@ class SonicBootUI(QWidget):
         core_container.setAlignment(Qt.AlignmentFlag.AlignCenter)
         core_container.addWidget(self._cinematic)
         layout.addLayout(core_container)
-        layout.addSpacing(5)
+        layout.addSpacing(12)
 
         # ── Title (hidden initially, revealed by cinematic) ─────────────
         self._title = QLabel("SONIC Apex")
-        self._title.setFont(QFont("Segoe UI", 32, QFont.Weight.DemiBold))
-        self._title.setStyleSheet("color: #d0d8e0; background: transparent; letter-spacing: 2px;")
+        self._title.setFont(Tokens.font(36, QFont.Weight.Bold))
+        self._title.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent; letter-spacing: 3px;")
         self._title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._title.setGraphicsEffect(self._create_glow(0.3))
+        self._title.setGraphicsEffect(create_glow(QColor(0, 180, 255, 40), radius=30))
         self._title.hide()
         layout.addWidget(self._title)
 
         # ── Subtitle (hidden initially) ─────────────────────────────────
         self._subtitle = QLabel("Your personal intelligence is initializing.")
-        self._subtitle.setFont(QFont("Segoe UI", 12))
-        self._subtitle.setStyleSheet("color: #6a7a8a; background: transparent;")
+        self._subtitle.setFont(Tokens.font(13))
+        self._subtitle.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent;")
         self._subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._subtitle.hide()
         layout.addWidget(self._subtitle)
 
-        layout.addSpacing(10)
+        layout.addSpacing(16)
 
         # ── Stage Pipeline (hidden initially) ───────────────────────────
         self._pipeline = StagePipeline()
@@ -511,40 +512,38 @@ class SonicBootUI(QWidget):
         pipeline_layout.addWidget(self._pipeline)
         layout.addLayout(pipeline_layout)
 
-        layout.addSpacing(8)
+        layout.addSpacing(12)
 
         # ── Progress Section (hidden initially) ─────────────────────────
         progress_layout = QHBoxLayout()
         progress_layout.setSpacing(15)
 
         self._progress_label = QLabel("INITIALIZATION")
-        self._progress_label.setFont(QFont("Segoe UI", 10))
-        self._progress_label.setStyleSheet("color: #5a6a7a; background: transparent; letter-spacing: 1px;")
+        self._progress_label.setFont(Tokens.font(10, QFont.Weight.Medium))
+        self._progress_label.setStyleSheet(f"color: {Tokens.TEXT_TERTIARY}; background: transparent; letter-spacing: 1.5px;")
         self._progress_label.hide()
         progress_layout.addWidget(self._progress_label)
 
         progress_layout.addStretch()
 
         self._percent_label = QLabel("0%")
-        self._percent_label.setFont(QFont("Segoe UI", 24, QFont.Weight.Light))
-        self._percent_label.setStyleSheet("color: #c0d0e0; background: transparent;")
+        self._percent_label.setFont(Tokens.font(28, QFont.Weight.Light))
+        self._percent_label.setStyleSheet(f"color: {Tokens.CYAN}; background: transparent;")
         self._percent_label.hide()
         progress_layout.addWidget(self._percent_label)
 
         layout.addLayout(progress_layout)
 
         # ── Progress Track (hidden initially) ───────────────────────────
-        self._progress_track = QWidget()
-        self._progress_track.setFixedHeight(3)
-        self._progress_track.setStyleSheet("background: transparent;")
-        self._progress_track.hide()
+        self._apple_progress = AppleProgressBar()
+        self._apple_progress.hide()
         self._progress_value = 0
-        layout.addWidget(self._progress_track)
+        layout.addWidget(self._apple_progress)
 
         # ── Status Message (hidden initially) ───────────────────────────
         self._status_label = QLabel("Preparing your environment...")
-        self._status_label.setFont(QFont("Segoe UI", 11))
-        self._status_label.setStyleSheet("color: #8090a0; background: transparent; padding: 8px 0;")
+        self._status_label.setFont(Tokens.font(12))
+        self._status_label.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent; padding: 12px 0;")
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._status_label.hide()
         layout.addWidget(self._status_label)
@@ -554,67 +553,27 @@ class SonicBootUI(QWidget):
         self._glass_panel.hide()
         layout.addWidget(self._glass_panel)
 
-        layout.addSpacing(5)
+        layout.addSpacing(8)
 
         # ── Buttons (hidden initially) ─────────────────────────────────
         btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
         btn_layout.addStretch()
 
-        self._skip_btn = QPushButton("Skip optional tools")
-        self._skip_btn.setFixedSize(160, 36)
-        self._skip_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._skip_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                color: #5a6a7a;
-                border: 1px solid #2a3545;
-                border-radius: 8px;
-                font-size: 11px;
-            }
-            QPushButton:hover { border: 1px solid #4a5a6a; color: #8a9aaa; }
-        """)
+        self._skip_btn = AppleButton("Skip optional tools", style="ghost")
+        self._skip_btn.setFixedSize(180, 36)
         self._skip_btn.clicked.connect(self._skip_optional)
         self._skip_btn.hide()
         btn_layout.addWidget(self._skip_btn)
 
-        self._action_btn = QPushButton("Enter SONIC")
-        self._action_btn.setFixedSize(180, 44)
-        self._action_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._action_btn.setStyleSheet("""
-            QPushButton {
-                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
-                    stop:0 #1a2030, stop:0.5 #2a3545, stop:1 #1a2030);
-                color: #c0d0e0;
-                border: 1px solid #3a4a5a;
-                border-radius: 10px;
-                font-size: 13px;
-                font-weight: 600;
-                letter-spacing: 1px;
-            }
-            QPushButton:hover {
-                background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
-                    stop:0 #2a3545, stop:0.5 #4a5a6a, stop:1 #2a3545);
-                border: 1px solid #5a6a7a;
-            }
-            QPushButton:disabled {
-                background: #0d1018;
-                color: #3a4a5a;
-                border: 1px solid #1a2030;
-            }
-        """)
+        self._action_btn = AppleButton("Enter SONIC", style="primary")
+        self._action_btn.setFixedSize(200, 48)
         self._action_btn.clicked.connect(self._on_action)
         self._action_btn.setEnabled(False)
         self._action_btn.hide()
         btn_layout.addWidget(self._action_btn)
 
         layout.addLayout(btn_layout)
-
-    def _create_glow(self, radius):
-        effect = QGraphicsDropShadowEffect()
-        effect.setBlurRadius(int(radius * 100))
-        effect.setColor(QColor(0, 150, 255, 30))
-        effect.setOffset(0, 0)
-        return effect
 
     def _start_cinematic_boot(self):
         """Start the cinematic boot animation sequence."""
@@ -623,23 +582,33 @@ class SonicBootUI(QWidget):
     def _on_cinematic_complete(self):
         """Called when cinematic animation finishes — transition to setup UI."""
         self._cinematic_done = True
-        # Show setup UI elements with fade-in
         self._fade_in_setup_ui()
 
     def _fade_in_setup_ui(self):
-        """Fade in setup UI elements after cinematic completes."""
+        """Fade in setup UI elements after cinematic completes with sequential animations."""
         self._title.show()
         self._subtitle.show()
         self._pipeline.show()
         self._progress_label.show()
         self._percent_label.show()
-        self._progress_track.show()
+        self._apple_progress.show()
         self._status_label.show()
         self._glass_panel.show()
         self._action_btn.show()
 
-        # Start detection after a brief moment
-        QTimer.singleShot(400, self._start_detection)
+        # Animate each element in sequence with delays
+        slide_up(self._title, duration=400, offset=15)
+        QTimer.singleShot(80, lambda: fade_in(self._subtitle, duration=350))
+        QTimer.singleShot(160, lambda: fade_in(self._pipeline, duration=350))
+        QTimer.singleShot(240, lambda: fade_in(self._progress_label, duration=300))
+        QTimer.singleShot(320, lambda: fade_in(self._percent_label, duration=300))
+        QTimer.singleShot(400, lambda: slide_up(self._apple_progress, duration=350, offset=10))
+        QTimer.singleShot(480, lambda: fade_in(self._status_label, duration=300))
+        QTimer.singleShot(560, lambda: fade_in(self._glass_panel, duration=350))
+        QTimer.singleShot(700, lambda: slide_up(self._action_btn, duration=400, offset=12))
+
+        # Start detection after animations settle
+        QTimer.singleShot(900, self._start_detection)
 
     def _start_detection(self):
         self._phase = "detecting"
@@ -658,7 +627,7 @@ class SonicBootUI(QWidget):
     def _on_progress(self, msg: str, pct: int):
         self._progress_value = pct
         self._percent_label.setText(f"{pct}%")
-        self._progress_track.update()
+        self._apple_progress.setValue(pct)
         self._status_label.setText(msg)
         self._cinematic.set_setup_state("checking", pct, msg)
 
@@ -720,6 +689,7 @@ class SonicBootUI(QWidget):
 
         self._progress_value = 100
         self._percent_label.setText("100%")
+        self._apple_progress.setValue(100)
         self._state.set_system_info({
             "os": str(self._results),
             "check_time": str(time.time())
@@ -753,46 +723,25 @@ class SonicBootUI(QWidget):
         self.finished.emit()
 
     def paintEvent(self, event):
-        """Custom background painting."""
+        """Custom background painting — pure black with subtle radial gradient."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         w, h = self.width(), self.height()
 
-        # Deep matte background
-        bg = QLinearGradient(0, 0, 0, h)
-        bg.setColorAt(0.0, QColor(6, 8, 16))
-        bg.setColorAt(0.5, QColor(8, 10, 18))
-        bg.setColorAt(1.0, QColor(6, 8, 16))
+        # Pure black base
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(bg))
+        painter.setBrush(QBrush(QColor(0, 0, 0)))
         painter.drawRect(0, 0, w, h)
 
-        # Subtle radial vignette
-        vignette = QRadialGradient(w // 2, h // 2, max(w, h) * 0.6)
-        vignette.setColorAt(0.0, QColor(0, 0, 0, 0))
-        vignette.setColorAt(1.0, QColor(0, 0, 0, 80))
-        painter.setBrush(QBrush(vignette))
+        # Subtle radial gradient — soft ambient glow
+        center_x, center_y = w // 2, int(h * 0.35)
+        radius = max(w, h) * 0.55
+        radial = QRadialGradient(center_x, center_y, radius)
+        radial.setColorAt(0.0, QColor(0, 80, 130, 18))
+        radial.setColorAt(0.4, QColor(0, 50, 100, 8))
+        radial.setColorAt(1.0, QColor(0, 0, 0, 0))
+        painter.setBrush(QBrush(radial))
         painter.drawRect(0, 0, w, h)
-
-        # Thin progress track
-        if self._progress_value > 0:
-            track_y = self._progress_track.y() + 1
-            track_w = self.width() - 100
-            fill_w = track_w * self._progress_value / 100
-
-            # Track background
-            painter.setPen(Qt.PenStyle.NoPen)
-            painter.setBrush(QBrush(QColor(20, 30, 40)))
-            painter.drawRoundedRect(50, track_y, track_w, 2, 1, 1)
-
-            # Fill
-            if fill_w > 0:
-                fill_grad = QLinearGradient(50, 0, 50 + track_w, 0)
-                fill_grad.setColorAt(0.0, QColor(0, 150, 220))
-                fill_grad.setColorAt(0.7, QColor(0, 200, 255))
-                fill_grad.setColorAt(1.0, QColor(0, 150, 220))
-                painter.setBrush(QBrush(fill_grad))
-                painter.drawRoundedRect(50, track_y, int(fill_w), 2, 1, 1)
 
         painter.end()

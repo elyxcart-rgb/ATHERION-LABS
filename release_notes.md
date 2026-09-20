@@ -1,33 +1,47 @@
-## SONIC Apex v2.3.0 — Computer Use Upgrade (GPT-6 Astra Level)
+## SONIC Apex v2.4.0 — Apple-Level Premium UI Redesign
 
 ### What's New
 
-**1. Pixel-Perfect Screen Finding**
-- Upgraded from `gemini-flash-lite` to `gemini-2.0-flash` for better accuracy
-- Now returns bounding box (x, y, width, height) + confidence score + element type
-- Clicks center of bounding box for accurate targeting
+**Apple-Level Design System (`apple_design.py`)**
+- Shared design tokens: colors, spacing, typography (SF Pro Display)
+- AppleButton: primary, secondary, ghost, destructive styles
+- AppleInput: clean input fields with focus animation
+- AppleCard: elevated surface containers
+- AppleStepIndicator: minimal dot-based progress
+- AppleProgressBar: thin 3px gradient progress bar
+- AppleDialog: replaces ugly QMessageBox with premium dialogs
+- AppleCheckmark: animated success checkmark
+- Fade-in and slide-up animations
 
-**2. Smart Click with Retry**
-- New `smart_click` action: AI finds element + clicks with retry logic
-- Retries up to 3 times if element not found
-- Verifies coordinates are within screen bounds
+**Bootstrap Screen**
+- Pure black background with subtle radial glow
+- Larger title (36pt) with glow effect
+- Smooth sequential fade-in animations
+- Apple-style "Enter SONIC" button
 
-**3. Type Into Field**
-- New `type_into` action: finds input field by description + types text
-- Combines screen_find + click + type in one action
+**Onboarding Wizard**
+- Pure black background with rounded corners
+- AppleStepIndicator for step progress
+- Pill-style segmented controls for theme selection
+- Smooth fade transitions between steps
+- AppleButton for all navigation
 
-**4. Gemini-Powered Command Parsing**
-- Autopilot now uses Gemini for complex voice commands
-- Falls back to regex for simple commands
-- Supports multi-step workflows: "open Chrome, go to YouTube, click search"
+**Setup Wizard**
+- Flat black background (removed radial gradient)
+- 24px border-radius (Apple-style rounded corners)
+- AppleStepIndicator, AppleButton, AppleInput throughout
+- Animated checkmark on completion step
+- Cleaner service cards with status badges
 
-**5. Better Error Recovery**
-- All actions have retry logic
-- Graceful fallbacks when AI vision fails
-- Coordinate bounds checking
+**Update Dialogs**
+- Pure black background with subtle border
+- AppleProgressBar for download progress
+- Clean typography and generous spacing
+- Apple-style button hierarchy
 
-### Backup
-Previous files backed up to: `backup_v2.2.0_computer_use/`
+**QMessageBox Replacement**
+- All QMessageBox calls replaced with AppleDialog
+- Consistent premium look across all dialogs
 
 ### Download
 - **Installer:** SONIC-AI-Setup.exe

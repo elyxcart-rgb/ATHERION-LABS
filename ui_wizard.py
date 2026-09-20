@@ -1,5 +1,5 @@
-"""SONIC AI — Modern Setup Wizard.
-Glass morphism design with smooth animations.
+"""SONIC AI — Apple-Level Setup Wizard.
+Premium design with smooth animations and clean aesthetics.
 """
 from __future__ import annotations
 
@@ -20,6 +20,11 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QComboBox, QCheckBox, QFrame, QGraphicsDropShadowEffect,
     QScrollArea, QSizePolicy, QSpacerItem,
+)
+
+from apple_design import (
+    Tokens, AppleButton, AppleInput, AppleCard, AppleStepIndicator,
+    AppleCheckmark, create_shadow, fade_in, slide_up,
 )
 
 try:
@@ -92,204 +97,99 @@ def _save_preferences(data: dict) -> None:
 
 
 class GlassCard(QFrame):
-    """Glass morphism card widget."""
+    """Apple-style card with Tokens styling."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet(f"""
             GlassCard {{
-                background: rgba(10, 13, 18, 0.85);
-                border: 1px solid rgba(0, 217, 255, 0.15);
-                border-radius: 16px;
+                background: {Tokens.BG_CARD};
+                border: 1px solid {Tokens.BORDER};
+                border-radius: {Tokens.R_LG}px;
             }}
         """)
-        shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(40)
-        shadow.setColor(QColor(0, 217, 255, 30))
-        shadow.setOffset(0, 4)
+        shadow = create_shadow(radius=24, color=QColor(0, 0, 0, 40), dy=2)
         self.setGraphicsEffect(shadow)
 
 
 class StepIndicator(QWidget):
-    """Horizontal step progress indicator."""
+    """Delegates to AppleStepIndicator for clean dots and connecting line."""
 
     def __init__(self, steps: list[str], parent=None):
         super().__init__(parent)
         self.steps = steps
-        self.current = 0
         self.setFixedHeight(60)
-        self.dots: list[QPoint] = []
+        self._inner = AppleStepIndicator(len(steps), self)
+        self._labels: list[QLabel] = []
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.addWidget(self._inner)
+        lbl_row = QHBoxLayout()
+        lbl_row.setContentsMargins(60, 0, 60, 0)
+        for i, name in enumerate(steps):
+            lbl = QLabel(name)
+            lbl.setFont(Tokens.font(9))
+            lbl.setStyleSheet(f"color: {Tokens.TEXT_TERTIARY}; background: transparent;")
+            lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            lbl_row.addWidget(lbl, 1)
+            self._labels.append(lbl)
+        layout.addLayout(lbl_row)
 
     def set_current(self, idx: int):
-        self.current = idx
-        self.update()
-
-    def paintEvent(self, event):
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        n = len(self.steps)
-        if n == 0:
-            return
-
-        w = self.width()
-        h = self.height()
-        margin = 40
-        usable = w - margin * 2
-        step_w = usable / max(n - 1, 1)
-        cy = h // 2
-
-        self.dots = []
-        for i in range(n):
-            x = int(margin + i * step_w)
-            self.dots.append(QPoint(x, cy))
-
-        for i in range(n - 1):
-            x1 = self.dots[i].x()
-            x2 = self.dots[i + 1].x()
-            if i < self.current:
-                pen = QPen(QColor(C.PRI), 2.5)
+        self._inner.set_current(idx)
+        for i, lbl in enumerate(self._labels):
+            if i <= idx:
+                lbl.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
             else:
-                pen = QPen(QColor(C.BORDER), 1.5)
-            p.setPen(pen)
-            p.drawLine(x1, cy, x2, cy)
-
-        for i, dot in enumerate(self.dots):
-            if i < self.current:
-                p.setBrush(QBrush(QColor(C.PRI)))
-                p.setPen(QPen(QColor(C.PRI_VIVID), 2))
-                p.drawEllipse(dot, 8, 8)
-                p.setPen(QPen(QColor(C.BG), 2))
-                p.setFont(QFont("Segoe UI", 7, QFont.Weight.Bold))
-                p.drawText(QRect(dot.x() - 4, dot.y() - 5, 8, 10),
-                           Qt.AlignmentFlag.AlignCenter, str(i + 1))
-            elif i == self.current:
-                p.setBrush(QBrush(QColor(C.PRI_DIM)))
-                p.setPen(QPen(QColor(C.PRI), 2))
-                p.drawEllipse(dot, 10, 10)
-                p.setPen(QPen(QColor(C.PRI_VIVID), 1))
-                p.setBrush(Qt.BrushStyle.NoBrush)
-                p.drawEllipse(dot, 14, 14)
-                p.setPen(QPen(QColor(C.PRI), 2))
-                p.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
-                p.drawText(QRect(dot.x() - 5, dot.y() - 6, 10, 12),
-                           Qt.AlignmentFlag.AlignCenter, str(i + 1))
-            else:
-                p.setBrush(QBrush(QColor(C.PANEL3)))
-                p.setPen(QPen(QColor(C.BORDER), 1.5))
-                p.drawEllipse(dot, 7, 7)
-                p.setPen(QPen(QColor(C.TEXT_DIM), 1))
-                p.setFont(QFont("Segoe UI", 7))
-                p.drawText(QRect(dot.x() - 4, dot.y() - 5, 8, 10),
-                           Qt.AlignmentFlag.AlignCenter, str(i + 1))
-
-            if i < len(self.steps):
-                label = self.steps[i]
-                p.setPen(QPen(QColor(C.TEXT if i <= self.current else C.TEXT_DIM), 1))
-                p.setFont(QFont("Segoe UI", 7))
-                tw = QFontMetrics(p.font()).horizontalAdvance(label)
-                p.drawText(QRect(dot.x() - tw // 2, cy + 22, tw, 16),
-                           Qt.AlignmentFlag.AlignCenter, label)
-
-        p.end()
-
-
-class GlowButton(QPushButton):
-    """Button with glow effect."""
-
-    def __init__(self, text: str, accent: bool = True, parent=None):
-        super().__init__(text, parent)
-        self.accent = accent
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setFixedHeight(44)
-        self.setMinimumWidth(140)
-        self.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
-        self._update_style()
-
-    def _update_style(self):
-        if self.accent:
-            self.setStyleSheet(f"""
-                QPushButton {{
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                        stop:0 {C.PRI_DIM}, stop:1 {C.PRI});
-                    color: {C.BG};
-                    border: none;
-                    border-radius: 22px;
-                    padding: 0 32px;
-                    font-weight: 600;
-                }}
-                QPushButton:hover {{
-                    background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                        stop:0 {C.PRI}, stop:1 {C.PRI_VIVID});
-                }}
-                QPushButton:pressed {{
-                    background: {C.PRI_DIM};
-                }}
-                QPushButton:disabled {{
-                    background: {C.PANEL3};
-                    color: {C.TEXT_DIM};
-                }}
-            """)
-        else:
-            self.setStyleSheet(f"""
-                QPushButton {{
-                    background: transparent;
-                    color: {C.TEXT_DIM};
-                    border: 1px solid {C.BORDER};
-                    border-radius: 22px;
-                    padding: 0 24px;
-                }}
-                QPushButton:hover {{
-                    border-color: {C.PRI_DIM};
-                    color: {C.TEXT};
-                }}
-            """)
+                lbl.setStyleSheet(f"color: {Tokens.TEXT_TERTIARY}; background: transparent;")
 
 
 class GlassInput(QLineEdit):
-    """Glass morphism input field."""
+    """Delegates to AppleInput for consistent styling."""
 
     def __init__(self, placeholder: str = "", parent=None):
         super().__init__(parent)
         self.setPlaceholderText(placeholder)
-        self.setFixedHeight(42)
-        self.setFont(QFont("Segoe UI", 10))
+        self.setFixedHeight(40)
+        self.setFont(Tokens.font(13))
         self.setStyleSheet(f"""
             QLineEdit {{
-                background: rgba(15, 18, 24, 0.9);
-                border: 1px solid {C.BORDER};
-                border-radius: 10px;
-                padding: 0 14px;
-                color: {C.TEXT};
-                selection-background-color: {C.PRI_DIM};
+                background: {Tokens.SURFACE_1};
+                border: 1px solid {Tokens.BORDER};
+                border-radius: {Tokens.R_SM}px;
+                padding: 0 12px;
+                color: {Tokens.TEXT_PRIMARY};
+                selection-background-color: rgba(10, 132, 255, 0.3);
             }}
             QLineEdit:focus {{
-                border-color: {C.PRI};
+                border: 1px solid {Tokens.ACCENT};
+                background: {Tokens.SURFACE_2};
             }}
             QLineEdit::placeholder {{
-                color: {C.TEXT_DIM};
+                color: {Tokens.TEXT_TERTIARY};
             }}
         """)
 
 
 class GlassComboBox(QComboBox):
-    """Glass morphism combo box."""
+    """Apple-style combo box matching design tokens."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(42)
-        self.setFont(QFont("Segoe UI", 10))
+        self.setFixedHeight(40)
+        self.setFont(Tokens.font(13))
         self.setStyleSheet(f"""
             QComboBox {{
-                background: rgba(15, 18, 24, 0.9);
-                border: 1px solid {C.BORDER};
-                border-radius: 10px;
-                padding: 0 14px;
-                color: {C.TEXT};
+                background: {Tokens.SURFACE_1};
+                border: 1px solid {Tokens.BORDER};
+                border-radius: {Tokens.R_SM}px;
+                padding: 0 12px;
+                color: {Tokens.TEXT_PRIMARY};
                 min-width: 120px;
             }}
             QComboBox:focus {{
-                border-color: {C.PRI};
+                border: 1px solid {Tokens.ACCENT};
             }}
             QComboBox::drop-down {{
                 border: none;
@@ -299,16 +199,17 @@ class GlassComboBox(QComboBox):
                 image: none;
                 border-left: 5px solid transparent;
                 border-right: 5px solid transparent;
-                border-top: 6px solid {C.TEXT_DIM};
+                border-top: 6px solid {Tokens.TEXT_TERTIARY};
                 margin-right: 10px;
             }}
             QComboBox QAbstractItemView {{
-                background: {C.PANEL2};
-                border: 1px solid {C.BORDER};
-                border-radius: 8px;
-                selection-background-color: {C.PRI_DIM};
-                color: {C.TEXT};
+                background: {Tokens.SURFACE_2};
+                border: 1px solid {Tokens.BORDER_LIGHT};
+                border-radius: {Tokens.R_SM}px;
+                selection-background-color: rgba(10, 132, 255, 0.2);
+                color: {Tokens.TEXT_PRIMARY};
                 padding: 4px;
+                outline: none;
             }}
         """)
 
@@ -340,12 +241,26 @@ class WelcomeStep(StepWidget):
         icon_label = QLabel()
         icon_path = ROOT / "config" / "sonic.ico"
         if icon_path.exists():
-            pixmap = QIcon(str(icon_path)).pixmap(80, 80)
+            pixmap = QIcon(str(icon_path)).pixmap(96, 96)
             icon_label.setPixmap(pixmap)
             icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(icon_label)
 
-        layout.addSpacing(10)
+        layout.addSpacing(8)
+
+        title = QLabel(self.title)
+        title.setFont(Tokens.font(20, QFont.Weight.Bold))
+        title.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        subtitle = QLabel(self.subtitle)
+        subtitle.setFont(Tokens.font(13))
+        subtitle.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent;")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle)
+
+        layout.addSpacing(20)
 
         features = [
             ("Voice Assistant", "Talk naturally, SONIC listens and responds"),
@@ -357,25 +272,34 @@ class WelcomeStep(StepWidget):
         for icon_text, desc in features:
             row = QHBoxLayout()
             row.setSpacing(12)
-            bullet = QLabel(f"  {icon_text}")
-            bullet.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
-            bullet.setStyleSheet(f"color: {C.PRI};")
-            bullet.setFixedWidth(180)
-            row.addWidget(bullet)
+            check = QLabel("\u2713")
+            check.setFont(Tokens.font(13, QFont.Weight.Bold))
+            check.setStyleSheet(f"color: {Tokens.SUCCESS}; background: transparent;")
+            check.setFixedWidth(24)
+            check.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            row.addWidget(check)
 
-            desc_label = QLabel(desc)
-            desc_label.setFont(QFont("Segoe UI", 9))
-            desc_label.setStyleSheet(f"color: {C.TEXT_DIM};")
-            desc_label.setWordWrap(True)
-            row.addWidget(desc_label)
-            row.addStretch()
+            text_col = QVBoxLayout()
+            text_col.setSpacing(2)
+            name_lbl = QLabel(icon_text)
+            name_lbl.setFont(Tokens.font(13, QFont.Weight.Medium))
+            name_lbl.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
+            text_col.addWidget(name_lbl)
+
+            desc_lbl = QLabel(desc)
+            desc_lbl.setFont(Tokens.font(11))
+            desc_lbl.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent;")
+            desc_lbl.setWordWrap(True)
+            text_col.addWidget(desc_lbl)
+
+            row.addLayout(text_col, 1)
             layout.addLayout(row)
 
         layout.addStretch()
 
         tip = QLabel("This wizard will guide you through the initial setup.")
-        tip.setFont(QFont("Segoe UI", 9))
-        tip.setStyleSheet(f"color: {C.TEXT_DIM}; font-style: italic;")
+        tip.setFont(Tokens.font(11))
+        tip.setStyleSheet(f"color: {Tokens.TEXT_TERTIARY}; background: transparent;")
         tip.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(tip)
 
@@ -393,19 +317,30 @@ class ApiKeyStep(StepWidget):
 
         gemini_row = QVBoxLayout()
         gemini_row.setSpacing(6)
-        gemini_label = QLabel("Gemini API Key *")
-        gemini_label.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
-        gemini_label.setStyleSheet(f"color: {C.TEXT};")
-        gemini_row.addWidget(gemini_label)
+        gemini_label_row = QHBoxLayout()
+        gemini_label = QLabel("Gemini API Key")
+        gemini_label.setFont(Tokens.font(12, QFont.Weight.Medium))
+        gemini_label.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
+        gemini_label_row.addWidget(gemini_label)
+
+        required_badge = QLabel("Required")
+        required_badge.setFont(Tokens.font(9, QFont.Weight.Medium))
+        required_badge.setStyleSheet(
+            f"color: {Tokens.ERROR}; background: rgba(255, 69, 58, 0.12); "
+            f"border-radius: {Tokens.R_SM}px; padding: 2px 8px;"
+        )
+        gemini_label_row.addWidget(required_badge)
+        gemini_label_row.addStretch()
+        gemini_row.addLayout(gemini_label_row)
 
         self.gemini_input = GlassInput("AIza...")
         self.gemini_input.setText(keys.get("gemini_api_key", ""))
         self.gemini_input.setEchoMode(QLineEdit.EchoMode.Password)
         gemini_row.addWidget(self.gemini_input)
 
-        gemini_tip = QLabel("Required — Get free key at ai.google.dev")
-        gemini_tip.setFont(QFont("Segoe UI", 8))
-        gemini_tip.setStyleSheet(f"color: {C.TEXT_DIM};")
+        gemini_tip = QLabel("Get free key at ai.google.dev")
+        gemini_tip.setFont(Tokens.font(11))
+        gemini_tip.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent;")
         gemini_row.addWidget(gemini_tip)
         layout.addLayout(gemini_row)
 
@@ -413,30 +348,40 @@ class ApiKeyStep(StepWidget):
 
         openai_row = QVBoxLayout()
         openai_row.setSpacing(6)
-        openai_label = QLabel("OpenAI API Key (Optional)")
-        openai_label.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
-        openai_label.setStyleSheet(f"color: {C.TEXT};")
+        openai_label = QLabel("OpenAI API Key")
+        openai_label.setFont(Tokens.font(12, QFont.Weight.Medium))
+        openai_label.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
         openai_row.addWidget(openai_label)
 
         self.openai_input = GlassInput("sk-...")
         self.openai_input.setText(keys.get("openai_api_key", ""))
         self.openai_input.setEchoMode(QLineEdit.EchoMode.Password)
         openai_row.addWidget(self.openai_input)
+
+        openai_tip = QLabel("Optional — Enables GPT models")
+        openai_tip.setFont(Tokens.font(11))
+        openai_tip.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent;")
+        openai_row.addWidget(openai_tip)
         layout.addLayout(openai_row)
 
         layout.addSpacing(4)
 
         discord_row = QVBoxLayout()
         discord_row.setSpacing(6)
-        discord_label = QLabel("Discord Bot Token (Optional)")
-        discord_label.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
-        discord_label.setStyleSheet(f"color: {C.TEXT};")
+        discord_label = QLabel("Discord Bot Token")
+        discord_label.setFont(Tokens.font(12, QFont.Weight.Medium))
+        discord_label.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
         discord_row.addWidget(discord_label)
 
         self.discord_input = GlassInput("Paste bot token...")
         self.discord_input.setText(keys.get("discord_bot_token", ""))
         self.discord_input.setEchoMode(QLineEdit.EchoMode.Password)
         discord_row.addWidget(self.discord_input)
+
+        discord_tip = QLabel("Optional — Enables Discord integration")
+        discord_tip.setFont(Tokens.font(11))
+        discord_tip.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent;")
+        discord_row.addWidget(discord_tip)
         layout.addLayout(discord_row)
 
         layout.addStretch()
@@ -471,38 +416,48 @@ class ServicesStep(StepWidget):
         keys = _load_api_keys()
 
         svc_header = QLabel("Configure external integrations (all optional):")
-        svc_header.setFont(QFont("Segoe UI", 9))
-        svc_header.setStyleSheet(f"color: {C.TEXT_DIM};")
+        svc_header.setFont(Tokens.font(12))
+        svc_header.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent;")
         layout.addWidget(svc_header)
 
         layout.addSpacing(2)
 
-        gh_card = GlassCard()
+        gh_card = AppleCard()
         gh_layout = QVBoxLayout(gh_card)
-        gh_layout.setContentsMargins(16, 12, 16, 12)
+        gh_layout.setContentsMargins(16, 14, 16, 14)
         gh_layout.setSpacing(6)
 
+        gh_header = QHBoxLayout()
         gh_title = QLabel("GitHub")
-        gh_title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        gh_title.setStyleSheet(f"color: {C.TEXT};")
-        gh_layout.addWidget(gh_title)
+        gh_title.setFont(Tokens.font(13, QFont.Weight.SemiBold))
+        gh_title.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
+        gh_header.addWidget(gh_title)
+        gh_header.addStretch()
+
+        auth_badge = QLabel("Authenticated")
+        auth_badge.setFont(Tokens.font(10, QFont.Weight.Medium))
+        auth_badge.setStyleSheet(
+            f"color: {Tokens.SUCCESS}; background: rgba(48, 209, 88, 0.12); "
+            f"border-radius: {Tokens.R_SM}px; padding: 3px 10px;"
+        )
+        gh_header.addWidget(auth_badge)
+        gh_layout.addLayout(gh_header)
 
         gh_desc = QLabel("gh CLI already authenticated. No setup needed.")
-        gh_desc.setFont(QFont("Segoe UI", 8))
-        gh_desc.setStyleSheet(f"color: {C.GREEN};")
+        gh_desc.setFont(Tokens.font(11))
+        gh_desc.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent;")
         gh_layout.addWidget(gh_desc)
 
         layout.addWidget(gh_card)
 
-        # Twitter card
-        tw_card = GlassCard()
+        tw_card = AppleCard()
         tw_layout = QVBoxLayout(tw_card)
-        tw_layout.setContentsMargins(16, 12, 16, 12)
+        tw_layout.setContentsMargins(16, 14, 16, 14)
         tw_layout.setSpacing(8)
 
         tw_title = QLabel("Twitter / X")
-        tw_title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        tw_title.setStyleSheet(f"color: {C.TEXT};")
+        tw_title.setFont(Tokens.font(13, QFont.Weight.SemiBold))
+        tw_title.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
         tw_layout.addWidget(tw_title)
 
         tw_row1 = QHBoxLayout()
@@ -536,15 +491,14 @@ class ServicesStep(StepWidget):
 
         layout.addWidget(tw_card)
 
-        # Email card
-        em_card = GlassCard()
+        em_card = AppleCard()
         em_layout = QVBoxLayout(em_card)
-        em_layout.setContentsMargins(16, 12, 16, 12)
+        em_layout.setContentsMargins(16, 14, 16, 14)
         em_layout.setSpacing(8)
 
         em_title = QLabel("Email")
-        em_title.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        em_title.setStyleSheet(f"color: {C.TEXT};")
+        em_title.setFont(Tokens.font(13, QFont.Weight.SemiBold))
+        em_title.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
         em_layout.addWidget(em_title)
 
         em_row1 = QHBoxLayout()
@@ -624,8 +578,8 @@ class PreferencesStep(StepWidget):
         name_col = QVBoxLayout()
         name_col.setSpacing(6)
         name_label = QLabel("Your Name")
-        name_label.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
-        name_label.setStyleSheet(f"color: {C.TEXT};")
+        name_label.setFont(Tokens.font(12, QFont.Weight.Medium))
+        name_label.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
         name_col.addWidget(name_label)
         self.name_input = GlassInput("Enter your name")
         self.name_input.setText(prefs.get("user_name", ""))
@@ -635,8 +589,8 @@ class PreferencesStep(StepWidget):
         assistant_col = QVBoxLayout()
         assistant_col.setSpacing(6)
         assistant_label = QLabel("Assistant Name")
-        assistant_label.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
-        assistant_label.setStyleSheet(f"color: {C.TEXT};")
+        assistant_label.setFont(Tokens.font(12, QFont.Weight.Medium))
+        assistant_label.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
         assistant_col.addWidget(assistant_label)
         self.assistant_input = GlassInput("SONIC")
         self.assistant_input.setText(prefs.get("assistant_name", "SONIC"))
@@ -653,21 +607,45 @@ class PreferencesStep(StepWidget):
         theme_col = QVBoxLayout()
         theme_col.setSpacing(6)
         theme_label = QLabel("Theme")
-        theme_label.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
-        theme_label.setStyleSheet(f"color: {C.TEXT};")
+        theme_label.setFont(Tokens.font(12, QFont.Weight.Medium))
+        theme_label.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
         theme_col.addWidget(theme_label)
+
+        self._theme_pills = QHBoxLayout()
+        self._theme_pills.setSpacing(0)
+        self._theme_buttons: list[QPushButton] = []
+        self._current_theme_index = 0
+
+        themes = ["Dark (Default)", "Sci-Fi Gold"]
+        current_theme = prefs.get("theme", "dark")
+        self._current_theme_index = 1 if current_theme == "scifi" else 0
+
+        for i, theme_name in enumerate(themes):
+            btn = QPushButton(theme_name)
+            btn.setCheckable(True)
+            btn.setChecked(i == self._current_theme_index)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setFont(Tokens.font(11, QFont.Weight.Medium))
+            btn.setFixedHeight(32)
+            btn.setStyleSheet(self._pill_style(i == self._current_theme_index))
+            btn.clicked.connect(lambda checked, idx=i: self._select_theme(idx))
+            self._theme_buttons.append(btn)
+            self._theme_pills.addWidget(btn)
+
         self.theme_combo = GlassComboBox()
         self.theme_combo.addItems(["Dark (Default)", "Sci-Fi Gold"])
-        current_theme = prefs.get("theme", "dark")
-        self.theme_combo.setCurrentIndex(1 if current_theme == "scifi" else 0)
+        self.theme_combo.setCurrentIndex(self._current_theme_index)
+        self.theme_combo.hide()
+
+        theme_col.addLayout(self._theme_pills)
         theme_col.addWidget(self.theme_combo)
         theme_row.addLayout(theme_col)
 
         lang_col = QVBoxLayout()
         lang_col.setSpacing(6)
         lang_label = QLabel("Language")
-        lang_label.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
-        lang_label.setStyleSheet(f"color: {C.TEXT};")
+        lang_label.setFont(Tokens.font(12, QFont.Weight.Medium))
+        lang_label.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
         lang_col.addWidget(lang_label)
         self.lang_combo = GlassComboBox()
         self.lang_combo.addItems(["English", "Roman Urdu", "Urdu", "Hindi"])
@@ -682,9 +660,9 @@ class PreferencesStep(StepWidget):
 
         layout.addSpacing(4)
 
-        instructions_label = QLabel("Custom Instructions (optional)")
-        instructions_label.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
-        instructions_label.setStyleSheet(f"color: {C.TEXT};")
+        instructions_label = QLabel("Custom Instructions")
+        instructions_label.setFont(Tokens.font(12, QFont.Weight.Medium))
+        instructions_label.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
         layout.addWidget(instructions_label)
 
         self.instructions_input = GlassInput("e.g., Always respond in Roman Urdu...")
@@ -693,12 +671,30 @@ class PreferencesStep(StepWidget):
 
         layout.addStretch()
 
+    def _pill_style(self, active: bool) -> str:
+        if active:
+            return (
+                f"background: {Tokens.ACCENT}; color: #ffffff; border: none; "
+                f"border-radius: {Tokens.R_SM}px; padding: 0 20px; font-weight: 500;"
+            )
+        return (
+            f"background: transparent; color: {Tokens.TEXT_SECONDARY}; "
+            f"border: 1px solid {Tokens.BORDER}; border-radius: {Tokens.R_SM}px; "
+            f"padding: 0 20px; font-weight: 500;"
+        )
+
+    def _select_theme(self, idx: int):
+        self._current_theme_index = idx
+        for i, btn in enumerate(self._theme_buttons):
+            btn.setStyleSheet(self._pill_style(i == idx))
+            btn.setChecked(i == idx)
+        self.theme_combo.setCurrentIndex(idx)
+
     def get_data(self) -> dict:
-        theme = "scifi" if self.theme_combo.currentIndex() == 1 else "dark"
         return {
             "user_name": self.name_input.text().strip(),
             "assistant_name": self.assistant_input.text().strip() or "SONIC",
-            "theme": theme,
+            "theme": "scifi" if self._current_theme_index == 1 else "dark",
             "language": self.lang_combo.currentText(),
             "custom_instructions": self.instructions_input.text().strip(),
         }
@@ -713,13 +709,33 @@ class DoneStep(StepWidget):
         layout.setContentsMargins(40, 30, 40, 20)
         layout.setSpacing(16)
 
-        check = QLabel("All configurations saved successfully!")
-        check.setFont(QFont("Segoe UI", 11, QFont.Weight.DemiBold))
-        check.setStyleSheet(f"color: {C.GREEN};")
-        check.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(check)
+        checkmark = AppleCheckmark(72)
+        checkmark_center = QHBoxLayout()
+        checkmark_center.addStretch()
+        checkmark_center.addWidget(checkmark)
+        checkmark_center.addStretch()
+        layout.addLayout(checkmark_center)
 
-        layout.addSpacing(10)
+        layout.addSpacing(8)
+
+        title = QLabel(self.title)
+        title.setFont(Tokens.font(18, QFont.Weight.Bold))
+        title.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+
+        subtitle = QLabel(self.subtitle)
+        subtitle.setFont(Tokens.font(12))
+        subtitle.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent;")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle)
+
+        layout.addSpacing(16)
+
+        summary_card = GlassCard()
+        summary_layout = QVBoxLayout(summary_card)
+        summary_layout.setContentsMargins(20, 16, 20, 16)
+        summary_layout.setSpacing(10)
 
         summary_items = [
             "API keys encrypted and stored",
@@ -730,24 +746,27 @@ class DoneStep(StepWidget):
 
         for item in summary_items:
             row = QHBoxLayout()
-            row.setSpacing(8)
-            bullet = QLabel("  ")
-            bullet.setFont(QFont("Segoe UI", 10))
-            bullet.setStyleSheet(f"color: {C.GREEN};")
-            bullet.setFixedWidth(20)
-            row.addWidget(bullet)
+            row.setSpacing(10)
+            check = QLabel("\u2713")
+            check.setFont(Tokens.font(12, QFont.Weight.Bold))
+            check.setStyleSheet(f"color: {Tokens.SUCCESS}; background: transparent;")
+            check.setFixedWidth(20)
+            check.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            row.addWidget(check)
             lbl = QLabel(item)
-            lbl.setFont(QFont("Segoe UI", 9))
-            lbl.setStyleSheet(f"color: {C.TEXT};")
+            lbl.setFont(Tokens.font(12))
+            lbl.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
             row.addWidget(lbl)
             row.addStretch()
-            layout.addLayout(row)
+            summary_layout.addLayout(row)
 
-        layout.addSpacing(16)
+        layout.addWidget(summary_card)
+
+        layout.addSpacing(12)
 
         tip = QLabel("You can say \"Setup karo\" anytime to reconfigure services.")
-        tip.setFont(QFont("Segoe UI", 8))
-        tip.setStyleSheet(f"color: {C.TEXT_DIM}; font-style: italic;")
+        tip.setFont(Tokens.font(11))
+        tip.setStyleSheet(f"color: {Tokens.TEXT_TERTIARY}; background: transparent;")
         tip.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(tip)
 
@@ -755,7 +774,7 @@ class DoneStep(StepWidget):
 
 
 class ModernWizard(QWidget):
-    """Modern setup wizard with glass morphism and animations."""
+    """Apple-level setup wizard with clean design and smooth animations."""
 
     completed = pyqtSignal()
     skipped = pyqtSignal()
@@ -770,8 +789,8 @@ class ModernWizard(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("SONIC Apex — Setup Wizard")
-        self.setFixedSize(680, 600)
+        self.setWindowTitle("SONIC Apex \u2014 Setup Wizard")
+        self.setFixedSize(680, 620)
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.Dialog
@@ -792,16 +811,15 @@ class ModernWizard(QWidget):
         self._bg = QWidget(self)
         self._bg.setStyleSheet(f"""
             QWidget {{
-                background: qradialgradient(cx:0.5, cy:0.4, radius:0.7,
-                    stop:0 rgba(0, 40, 60, 0.95), stop:1 rgba(5, 7, 10, 0.98));
-                border: 1px solid rgba(0, 217, 255, 0.12);
-                border-radius: 20px;
+                background: {Tokens.BG_PRIMARY};
+                border: 1px solid {Tokens.BORDER};
+                border-radius: 24px;
             }}
         """)
         root.addWidget(self._bg)
 
         bg_layout = QVBoxLayout(self._bg)
-        bg_layout.setContentsMargins(24, 16, 24, 20)
+        bg_layout.setContentsMargins(32, 20, 32, 24)
         bg_layout.setSpacing(0)
 
         header = QHBoxLayout()
@@ -815,27 +833,26 @@ class ModernWizard(QWidget):
         header.addWidget(icon_lbl)
 
         title = QLabel("SONIC Apex")
-        title.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
-        title.setStyleSheet(f"color: {C.PRI}; background: transparent;")
+        title.setFont(Tokens.font(15, QFont.Weight.Bold))
+        title.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
         header.addWidget(title)
 
         header.addStretch()
 
-        close_btn = QPushButton("X")
+        close_btn = QPushButton("\u2715")
         close_btn.setFixedSize(30, 30)
         close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.setFont(Tokens.font(12, QFont.Weight.Normal))
         close_btn.setStyleSheet(f"""
             QPushButton {{
                 background: transparent;
-                color: {C.TEXT_DIM};
+                color: {Tokens.TEXT_TERTIARY};
                 border: none;
                 border-radius: 15px;
-                font-size: 13px;
-                font-weight: bold;
             }}
             QPushButton:hover {{
-                background: rgba(196, 58, 74, 0.3);
-                color: {C.RED};
+                background: rgba(255, 69, 58, 0.15);
+                color: {Tokens.ERROR};
             }}
         """)
         close_btn.clicked.connect(self._on_close)
@@ -847,7 +864,7 @@ class ModernWizard(QWidget):
         self._step_indicator = StepIndicator(self.STEPS_META)
         self._step_indicator.setStyleSheet("background: transparent;")
         bg_layout.addWidget(self._step_indicator)
-        bg_layout.addSpacing(4)
+        bg_layout.addSpacing(8)
 
         self._content_area = QWidget()
         self._content_area.setStyleSheet("background: transparent;")
@@ -860,15 +877,15 @@ class ModernWizard(QWidget):
         nav.setSpacing(12)
         nav.addStretch()
 
-        self._skip_btn = GlowButton("Skip All", accent=False)
+        self._skip_btn = AppleButton("Skip All", style="ghost")
         self._skip_btn.clicked.connect(self._on_skip)
         nav.addWidget(self._skip_btn)
 
-        self._prev_btn = GlowButton("Back", accent=False)
+        self._prev_btn = AppleButton("Back", style="secondary")
         self._prev_btn.clicked.connect(self._prev)
         nav.addWidget(self._prev_btn)
 
-        self._next_btn = GlowButton("Next")
+        self._next_btn = AppleButton("Next", style="primary")
         self._next_btn.clicked.connect(self._next)
         nav.addWidget(self._next_btn)
 
@@ -985,7 +1002,6 @@ class ModernWizard(QWidget):
                     _save_preferences(data)
                     all_data.update(data)
 
-        # Save to user profile in AppData
         if all_data:
             _PROFILE_DIR.mkdir(parents=True, exist_ok=True)
             profile = {}
