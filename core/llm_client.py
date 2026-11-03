@@ -16,11 +16,13 @@ Supports two backends — selected via  "llm_provider"  in config/api_keys.json:
         Note: tool-calling support depends on the model; use a model that
         supports function/tool calls (e.g. Qwen2.5, Llama-3.1, Mistral).
 """
+import hashlib
 import json
 import re
 import subprocess
 import sys
 import time
+from collections import OrderedDict
 from pathlib import Path
 from typing import Callable, Generator
 
@@ -328,19 +330,105 @@ def call_llm(
         raise RuntimeError(f"LLM call failed: {e}")
 
 
+# ── Response cache ──────────────────────────────────────────────────────────────
+#
+# call_llm_text is called from many hot paths (planner, executor, error_handler,
+# code_helper, dev_agent). For many of these, the same prompt recurs within a
+# short window — a TTL cache cuts repeat latency to zero. The cache is keyed
+# by a hash of (system, prompt, model) and is LRU-bounded so memory stays
+# flat. Default TTL is 5 min — long enough for typical session reuse, short
+# enough that the user never sees a stale answer.
+
+_TEXT_CACHE_TTL_SEC = 300          # 5 minutes
+_TEXT_CACHE_MAX     = 500
+_TEXT_CACHE: "OrderedDict[str, tuple[float, str]]" = OrderedDict()
+_TEXT_CACHE_HITS = 0
+_TEXT_CACHE_MISSES = 0
+_TEXT_CACHE_LOCK = __import__("threading").Lock()
+
+
+def _text_cache_get(key: str) -> str | None:
+    global _TEXT_CACHE_HITS
+    now = time.monotonic()
+    with _TEXT_CACHE_LOCK:
+        entry = _TEXT_CACHE.get(key)
+        if entry is None:
+            return None
+        ts, value = entry
+        if (now - ts) > _TEXT_CACHE_TTL_SEC:
+            _TEXT_CACHE.pop(key, None)
+            return None
+        # LRU bump
+        _TEXT_CACHE.move_to_end(key)
+        _TEXT_CACHE_HITS += 1
+        return value
+
+
+def _text_cache_put(key: str, value: str) -> None:
+    with _TEXT_CACHE_LOCK:
+        _TEXT_CACHE[key] = (time.monotonic(), value)
+        _TEXT_CACHE.move_to_end(key)
+        while len(_TEXT_CACHE) > _TEXT_CACHE_MAX:
+            _TEXT_CACHE.popitem(last=False)
+
+
+def _text_cache_clear() -> None:
+    global _TEXT_CACHE_HITS, _TEXT_CACHE_MISSES
+    with _TEXT_CACHE_LOCK:
+        _TEXT_CACHE.clear()
+        _TEXT_CACHE_HITS = 0
+        _TEXT_CACHE_MISSES = 0
+
+
+def text_cache_stats() -> dict:
+    """Inspect the response cache — size, hit/miss counts, hit rate."""
+    with _TEXT_CACHE_LOCK:
+        total = _TEXT_CACHE_HITS + _TEXT_CACHE_MISSES
+        hit_rate = (_TEXT_CACHE_HITS / total) if total else 0.0
+        return {
+            "size": len(_TEXT_CACHE),
+            "max": _TEXT_CACHE_MAX,
+            "ttl_seconds": _TEXT_CACHE_TTL_SEC,
+            "hits": _TEXT_CACHE_HITS,
+            "misses": _TEXT_CACHE_MISSES,
+            "hit_rate": round(hit_rate, 3),
+        }
+
+
 def call_llm_text(
     prompt:  str,
     system:  str | None = None,
     model:   str | None = None,
     timeout: int = 120,
+    *,
+    use_cache: bool = True,
 ) -> str:
     """
     Simple text-only generation (no tools).
     Used by planner, executor, error_handler, code_helper, dev_agent.
+
+    Args:
+        prompt:     User prompt.
+        system:     Optional system message.
+        model:      Optional model override.
+        timeout:    HTTP timeout in seconds.
+        use_cache:  If True (default), repeated identical prompts within the
+                    TTL window return the cached answer instantly. Set False
+                    to bypass the cache (e.g. when debugging prompt changes).
     """
     url, default_model = get_llm_settings()
     endpoint = f"{url}/api/chat"
     m        = model or default_model
+
+    # ── Cache lookup ─────────────────────────────────────────────────────
+    cache_key: str | None = None
+    if use_cache:
+        cache_key = hashlib.sha256(
+            f"{m}|{system or ''}|{prompt}".encode("utf-8")
+        ).hexdigest()
+        hit = _text_cache_get(cache_key)
+        if hit is not None:
+            return hit
 
     messages: list[dict] = []
     if system:
@@ -349,16 +437,27 @@ def call_llm_text(
 
     payload = {"model": m, "messages": messages, "stream": False, "keep_alive": -1, "options": {"num_predict": 600}}
 
+    def _store_cache(value: str) -> None:
+        if use_cache and cache_key is not None:
+            global _TEXT_CACHE_MISSES
+            with _TEXT_CACHE_LOCK:
+                _TEXT_CACHE_MISSES += 1
+            _text_cache_put(cache_key, value)
+
     try:
         resp = requests.post(endpoint, json=payload, timeout=timeout)
         resp.raise_for_status()
-        return (resp.json().get("message", {}).get("content") or "").strip()
+        text = (resp.json().get("message", {}).get("content") or "").strip()
+        _store_cache(text)
+        return text
     except requests.exceptions.ConnectionError:
         if ensure_ollama_running():
             try:
                 resp = requests.post(endpoint, json=payload, timeout=timeout)
                 resp.raise_for_status()
-                return (resp.json().get("message", {}).get("content") or "").strip()
+                text = (resp.json().get("message", {}).get("content") or "").strip()
+                _store_cache(text)
+                return text
             except Exception:
                 pass
         raise RuntimeError(

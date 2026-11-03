@@ -19,12 +19,14 @@ from PyQt6.QtGui import (
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QComboBox, QCheckBox, QFrame, QGraphicsDropShadowEffect,
-    QScrollArea, QSizePolicy, QSpacerItem,
+    QGraphicsOpacityEffect, QScrollArea, QSizePolicy, QSpacerItem,
 )
 
 from apple_design import (
     Tokens, AppleButton, AppleInput, AppleCard, AppleStepIndicator,
     AppleCheckmark, create_shadow, fade_in, slide_up,
+    AppleProgressBar, AppleDialog, AppleToast,
+    _AppleDialogIcon,
 )
 
 try:
@@ -230,37 +232,52 @@ class StepWidget(QWidget):
 
 
 class WelcomeStep(StepWidget):
-    """Welcome / intro step."""
+    """Welcome / intro step — hero icon + value props."""
 
     def __init__(self, parent=None):
         super().__init__("Welcome to SONIC Apex", "Your intelligent desktop assistant", parent)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 30, 40, 20)
-        layout.setSpacing(16)
+        layout.setContentsMargins(48, 24, 48, 24)
+        layout.setSpacing(14)
 
-        icon_label = QLabel()
+        # ── Hero icon (file icon or Apple-style fallback) ───────────────
         icon_path = ROOT / "config" / "sonic.ico"
         if icon_path.exists():
+            icon_label = QLabel()
             pixmap = QIcon(str(icon_path)).pixmap(96, 96)
             icon_label.setPixmap(pixmap)
             icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(icon_label)
+            icon_label.setFixedHeight(96)
+            icon_label.setStyleSheet("background: transparent;")
+            layout.addWidget(icon_label)
+        else:
+            hero = _AppleDialogIcon("info", self)
+            hero.setFixedSize(80, 80)
+            hero_row = QHBoxLayout()
+            hero_row.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            hero_row.addWidget(hero)
+            layout.addLayout(hero_row)
+            layout.addSpacing(6)
 
-        layout.addSpacing(8)
+        layout.addSpacing(4)
 
         title = QLabel(self.title)
-        title.setFont(Tokens.font(20, QFont.Weight.Bold))
-        title.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
+        title.setFont(Tokens.font(22, QFont.Weight.Bold))
+        title.setStyleSheet(
+            f"color: {Tokens.TEXT_PRIMARY}; background: transparent; letter-spacing: 0.2px;"
+        )
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
         subtitle = QLabel(self.subtitle)
-        subtitle.setFont(Tokens.font(13))
-        subtitle.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent;")
+        subtitle.setFont(Tokens.font(14))
+        subtitle.setStyleSheet(
+            f"color: {Tokens.TEXT_SECONDARY}; background: transparent;"
+        )
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(subtitle)
 
-        layout.addSpacing(20)
+        layout.addSpacing(18)
 
         features = [
             ("Voice Assistant", "Talk naturally, SONIC listens and responds"),
@@ -269,37 +286,57 @@ class WelcomeStep(StepWidget):
             ("Self-Improving", "Learns from interactions over time"),
         ]
 
-        for icon_text, desc in features:
-            row = QHBoxLayout()
-            row.setSpacing(12)
+        # ── Feature list (crisp AppleCard rows) ──────────────────────────
+        for feat_name, feat_desc in features:
+            row = QFrame()
+            row.setStyleSheet(f"""
+                QFrame {{
+                    background: {Tokens.SURFACE_1};
+                    border: 1px solid {Tokens.BORDER};
+                    border-radius: {Tokens.R_SM}px;
+                }}
+            """)
+            row.setFixedHeight(48)
+            h = QHBoxLayout(row)
+            h.setContentsMargins(14, 0, 14, 0)
+            h.setSpacing(12)
+
             check = QLabel("\u2713")
             check.setFont(Tokens.font(13, QFont.Weight.Bold))
-            check.setStyleSheet(f"color: {Tokens.SUCCESS}; background: transparent;")
-            check.setFixedWidth(24)
+            check.setStyleSheet(
+                f"color: {Tokens.SUCCESS}; background: transparent; border: none;"
+            )
+            check.setFixedWidth(16)
             check.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            row.addWidget(check)
+            h.addWidget(check, 0, Qt.AlignmentFlag.AlignVCenter)
 
             text_col = QVBoxLayout()
-            text_col.setSpacing(2)
-            name_lbl = QLabel(icon_text)
+            text_col.setSpacing(1)
+            name_lbl = QLabel(feat_name)
             name_lbl.setFont(Tokens.font(13, QFont.Weight.Medium))
-            name_lbl.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
+            name_lbl.setStyleSheet(
+                f"color: {Tokens.TEXT_PRIMARY}; background: transparent; border: none;"
+            )
             text_col.addWidget(name_lbl)
 
-            desc_lbl = QLabel(desc)
+            desc_lbl = QLabel(feat_desc)
             desc_lbl.setFont(Tokens.font(11))
-            desc_lbl.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent;")
+            desc_lbl.setStyleSheet(
+                f"color: {Tokens.TEXT_SECONDARY}; background: transparent; border: none;"
+            )
             desc_lbl.setWordWrap(True)
             text_col.addWidget(desc_lbl)
 
-            row.addLayout(text_col, 1)
-            layout.addLayout(row)
+            h.addLayout(text_col, 1)
+            layout.addWidget(row)
 
         layout.addStretch()
 
         tip = QLabel("This wizard will guide you through the initial setup.")
         tip.setFont(Tokens.font(11))
-        tip.setStyleSheet(f"color: {Tokens.TEXT_TERTIARY}; background: transparent;")
+        tip.setStyleSheet(
+            f"color: {Tokens.TEXT_TERTIARY}; background: transparent;"
+        )
         tip.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(tip)
 
@@ -310,8 +347,27 @@ class ApiKeyStep(StepWidget):
     def __init__(self, parent=None):
         super().__init__("API Configuration", "Add your API keys to unlock full power", parent)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 20, 40, 20)
-        layout.setSpacing(14)
+        layout.setContentsMargins(48, 18, 48, 18)
+        layout.setSpacing(12)
+
+        # ── Step header ─────────────────────────────────────────────────
+        header = QVBoxLayout()
+        header.setSpacing(2)
+        title_lbl = QLabel(self.title)
+        title_lbl.setFont(Tokens.font(20, QFont.Weight.DemiBold))
+        title_lbl.setStyleSheet(
+            f"color: {Tokens.TEXT_PRIMARY}; background: transparent;"
+        )
+        header.addWidget(title_lbl)
+        sub_lbl = QLabel(self.subtitle)
+        sub_lbl.setFont(Tokens.font(13))
+        sub_lbl.setStyleSheet(
+            f"color: {Tokens.TEXT_SECONDARY}; background: transparent;"
+        )
+        header.addWidget(sub_lbl)
+        layout.addLayout(header)
+
+        layout.addSpacing(10)
 
         keys = _load_api_keys()
 
@@ -324,10 +380,11 @@ class ApiKeyStep(StepWidget):
         gemini_label_row.addWidget(gemini_label)
 
         required_badge = QLabel("Required")
-        required_badge.setFont(Tokens.font(9, QFont.Weight.Medium))
+        required_badge.setFont(Tokens.font(9, QFont.Weight.DemiBold))
         required_badge.setStyleSheet(
-            f"color: {Tokens.ERROR}; background: rgba(255, 69, 58, 0.12); "
-            f"border-radius: {Tokens.R_SM}px; padding: 2px 8px;"
+            f"color: {Tokens.ERROR}; background: rgba(255, 69, 58, 0.14); "
+            f"border: 1px solid rgba(255, 69, 58, 0.30); "
+            f"border-radius: {Tokens.R_SM}px; padding: 3px 9px; letter-spacing: 0.3px;"
         )
         gemini_label_row.addWidget(required_badge)
         gemini_label_row.addStretch()
@@ -410,8 +467,27 @@ class ServicesStep(StepWidget):
     def __init__(self, parent=None):
         super().__init__("External Services", "Connect to GitHub, Twitter, and Email", parent)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 20, 40, 20)
-        layout.setSpacing(10)
+        layout.setContentsMargins(48, 18, 48, 18)
+        layout.setSpacing(8)
+
+        # ── Step header ─────────────────────────────────────────────────
+        header = QVBoxLayout()
+        header.setSpacing(2)
+        title_lbl = QLabel(self.title)
+        title_lbl.setFont(Tokens.font(20, QFont.Weight.DemiBold))
+        title_lbl.setStyleSheet(
+            f"color: {Tokens.TEXT_PRIMARY}; background: transparent;"
+        )
+        header.addWidget(title_lbl)
+        sub_lbl = QLabel(self.subtitle)
+        sub_lbl.setFont(Tokens.font(13))
+        sub_lbl.setStyleSheet(
+            f"color: {Tokens.TEXT_SECONDARY}; background: transparent;"
+        )
+        header.addWidget(sub_lbl)
+        layout.addLayout(header)
+
+        layout.addSpacing(10)
 
         keys = _load_api_keys()
 
@@ -429,7 +505,7 @@ class ServicesStep(StepWidget):
 
         gh_header = QHBoxLayout()
         gh_title = QLabel("GitHub")
-        gh_title.setFont(Tokens.font(13, QFont.Weight.SemiBold))
+        gh_title.setFont(Tokens.font(13, QFont.Weight.DemiBold))
         gh_title.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
         gh_header.addWidget(gh_title)
         gh_header.addStretch()
@@ -456,7 +532,7 @@ class ServicesStep(StepWidget):
         tw_layout.setSpacing(8)
 
         tw_title = QLabel("Twitter / X")
-        tw_title.setFont(Tokens.font(13, QFont.Weight.SemiBold))
+        tw_title.setFont(Tokens.font(13, QFont.Weight.DemiBold))
         tw_title.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
         tw_layout.addWidget(tw_title)
 
@@ -497,7 +573,7 @@ class ServicesStep(StepWidget):
         em_layout.setSpacing(8)
 
         em_title = QLabel("Email")
-        em_title.setFont(Tokens.font(13, QFont.Weight.SemiBold))
+        em_title.setFont(Tokens.font(13, QFont.Weight.DemiBold))
         em_title.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
         em_layout.addWidget(em_title)
 
@@ -567,8 +643,27 @@ class PreferencesStep(StepWidget):
     def __init__(self, parent=None):
         super().__init__("Preferences", "Customize your SONIC experience", parent)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 20, 40, 20)
-        layout.setSpacing(14)
+        layout.setContentsMargins(48, 18, 48, 18)
+        layout.setSpacing(12)
+
+        # ── Step header ─────────────────────────────────────────────────
+        header = QVBoxLayout()
+        header.setSpacing(2)
+        title_lbl = QLabel(self.title)
+        title_lbl.setFont(Tokens.font(20, QFont.Weight.DemiBold))
+        title_lbl.setStyleSheet(
+            f"color: {Tokens.TEXT_PRIMARY}; background: transparent;"
+        )
+        header.addWidget(title_lbl)
+        sub_lbl = QLabel(self.subtitle)
+        sub_lbl.setFont(Tokens.font(13))
+        sub_lbl.setStyleSheet(
+            f"color: {Tokens.TEXT_SECONDARY}; background: transparent;"
+        )
+        header.addWidget(sub_lbl)
+        layout.addLayout(header)
+
+        layout.addSpacing(10)
 
         prefs = _load_preferences()
 
@@ -701,41 +796,44 @@ class PreferencesStep(StepWidget):
 
 
 class DoneStep(StepWidget):
-    """Completion step."""
+    """Completion step — celebratory checkmark + summary card."""
 
     def __init__(self, parent=None):
         super().__init__("Setup Complete!", "SONIC Apex is ready to go", parent)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 30, 40, 20)
-        layout.setSpacing(16)
+        layout.setContentsMargins(48, 18, 48, 18)
+        layout.setSpacing(14)
 
-        checkmark = AppleCheckmark(72)
+        checkmark = AppleCheckmark(80)
         checkmark_center = QHBoxLayout()
-        checkmark_center.addStretch()
+        checkmark_center.setAlignment(Qt.AlignmentFlag.AlignCenter)
         checkmark_center.addWidget(checkmark)
-        checkmark_center.addStretch()
         layout.addLayout(checkmark_center)
 
         layout.addSpacing(8)
 
         title = QLabel(self.title)
-        title.setFont(Tokens.font(18, QFont.Weight.Bold))
-        title.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
+        title.setFont(Tokens.font(22, QFont.Weight.Bold))
+        title.setStyleSheet(
+            f"color: {Tokens.TEXT_PRIMARY}; background: transparent; letter-spacing: 0.2px;"
+        )
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
         subtitle = QLabel(self.subtitle)
-        subtitle.setFont(Tokens.font(12))
-        subtitle.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent;")
+        subtitle.setFont(Tokens.font(14))
+        subtitle.setStyleSheet(
+            f"color: {Tokens.TEXT_SECONDARY}; background: transparent;"
+        )
         subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(subtitle)
 
-        layout.addSpacing(16)
+        layout.addSpacing(18)
 
         summary_card = GlassCard()
         summary_layout = QVBoxLayout(summary_card)
-        summary_layout.setContentsMargins(20, 16, 20, 16)
-        summary_layout.setSpacing(10)
+        summary_layout.setContentsMargins(20, 14, 20, 14)
+        summary_layout.setSpacing(8)
 
         summary_items = [
             "API keys encrypted and stored",
@@ -749,24 +847,30 @@ class DoneStep(StepWidget):
             row.setSpacing(10)
             check = QLabel("\u2713")
             check.setFont(Tokens.font(12, QFont.Weight.Bold))
-            check.setStyleSheet(f"color: {Tokens.SUCCESS}; background: transparent;")
-            check.setFixedWidth(20)
+            check.setStyleSheet(
+                f"color: {Tokens.SUCCESS}; background: transparent;"
+            )
+            check.setFixedWidth(16)
             check.setAlignment(Qt.AlignmentFlag.AlignCenter)
             row.addWidget(check)
             lbl = QLabel(item)
-            lbl.setFont(Tokens.font(12))
-            lbl.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
+            lbl.setFont(Tokens.font(13))
+            lbl.setStyleSheet(
+                f"color: {Tokens.TEXT_PRIMARY}; background: transparent;"
+            )
             row.addWidget(lbl)
             row.addStretch()
             summary_layout.addLayout(row)
 
         layout.addWidget(summary_card)
 
-        layout.addSpacing(12)
+        layout.addSpacing(8)
 
         tip = QLabel("You can say \"Setup karo\" anytime to reconfigure services.")
         tip.setFont(Tokens.font(11))
-        tip.setStyleSheet(f"color: {Tokens.TEXT_TERTIARY}; background: transparent;")
+        tip.setStyleSheet(
+            f"color: {Tokens.TEXT_TERTIARY}; background: transparent;"
+        )
         tip.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(tip)
 
@@ -789,8 +893,8 @@ class ModernWizard(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("SONIC Apex \u2014 Setup Wizard")
-        self.setFixedSize(680, 620)
+        self.setWindowTitle("SONIC Apex — Setup Wizard")
+        self.setFixedSize(760, 680)
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.Dialog
@@ -804,6 +908,24 @@ class ModernWizard(QWidget):
         self._build_ui()
         self._show_step(0)
 
+    def _center_on_parent(self):
+        from PyQt6.QtWidgets import QApplication
+        parent = self.parentWidget()
+        if parent and parent.isVisible():
+            pg = parent.frameGeometry()
+            self.move(
+                pg.x() + (pg.width() - self.width()) // 2,
+                pg.y() + (pg.height() - self.height()) // 2,
+            )
+            return
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            avail = screen.availableGeometry()
+            self.move(
+                avail.x() + (avail.width() - self.width()) // 2,
+                avail.y() + (avail.height() - self.height()) // 2,
+            )
+
     def _build_ui(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -812,14 +934,16 @@ class ModernWizard(QWidget):
         self._bg.setStyleSheet(f"""
             QWidget {{
                 background: {Tokens.BG_PRIMARY};
-                border: 1px solid {Tokens.BORDER};
+                border: 1px solid {Tokens.BORDER_LIGHT};
                 border-radius: 24px;
             }}
         """)
+        shadow = create_shadow(radius=60, color=QColor(0, 0, 0, 130), dy=12)
+        self._bg.setGraphicsEffect(shadow)
         root.addWidget(self._bg)
 
         bg_layout = QVBoxLayout(self._bg)
-        bg_layout.setContentsMargins(32, 20, 32, 24)
+        bg_layout.setContentsMargins(36, 22, 36, 28)
         bg_layout.setSpacing(0)
 
         header = QHBoxLayout()
@@ -833,8 +957,8 @@ class ModernWizard(QWidget):
         header.addWidget(icon_lbl)
 
         title = QLabel("SONIC Apex")
-        title.setFont(Tokens.font(15, QFont.Weight.Bold))
-        title.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
+        title.setFont(Tokens.font(15, QFont.Weight.DemiBold))
+        title.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent; letter-spacing: 0.3px;")
         header.addWidget(title)
 
         header.addStretch()
@@ -859,12 +983,12 @@ class ModernWizard(QWidget):
         header.addWidget(close_btn)
 
         bg_layout.addLayout(header)
-        bg_layout.addSpacing(8)
+        bg_layout.addSpacing(14)
 
         self._step_indicator = StepIndicator(self.STEPS_META)
         self._step_indicator.setStyleSheet("background: transparent;")
         bg_layout.addWidget(self._step_indicator)
-        bg_layout.addSpacing(8)
+        bg_layout.addSpacing(14)
 
         self._content_area = QWidget()
         self._content_area.setStyleSheet("background: transparent;")
@@ -874,18 +998,22 @@ class ModernWizard(QWidget):
         bg_layout.addWidget(self._content_area, 1)
 
         nav = QHBoxLayout()
-        nav.setSpacing(12)
+        nav.setSpacing(10)
         nav.addStretch()
 
         self._skip_btn = AppleButton("Skip All", style="ghost")
+        self._skip_btn.setFixedHeight(38)
         self._skip_btn.clicked.connect(self._on_skip)
         nav.addWidget(self._skip_btn)
 
         self._prev_btn = AppleButton("Back", style="secondary")
+        self._prev_btn.setFixedHeight(38)
         self._prev_btn.clicked.connect(self._prev)
         nav.addWidget(self._prev_btn)
 
         self._next_btn = AppleButton("Next", style="primary")
+        self._next_btn.setFixedHeight(38)
+        self._next_btn.setMinimumWidth(140)
         self._next_btn.clicked.connect(self._next)
         nav.addWidget(self._next_btn)
 
@@ -937,18 +1065,36 @@ class ModernWizard(QWidget):
 
     def _animate_transition(self, old_idx: int, new_idx: int):
         content = self._content_area
-        content.setWindowOpacity(0.0)
 
-        anim = QPropertyAnimation(content, b"windowOpacity")
-        anim.setDuration(250)
-        anim.setStartValue(0.0)
-        anim.setEndValue(1.0)
-        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-        anim.start()
+        # Slide direction: forward = left-to-right, back = right-to-left
+        direction = -1 if new_idx > old_idx else 1
+        start_x = content.x() + (16 * direction)
 
-        self._anim_group = QParallelAnimationGroup()
-        self._anim_group.addAnimation(anim)
-        self._anim_group.start()
+        # Position the content area at start_x for the slide
+        opacity_effect = QGraphicsOpacityEffect(content)
+        opacity_effect.setOpacity(0.0)
+        content.setGraphicsEffect(opacity_effect)
+
+        original_x = content.x()
+        content.move(start_x, content.y())
+
+        fade_anim = QPropertyAnimation(opacity_effect, b"opacity")
+        fade_anim.setDuration(280)
+        fade_anim.setStartValue(0.0)
+        fade_anim.setEndValue(1.0)
+        fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        slide_anim = QPropertyAnimation(content, b"pos")
+        slide_anim.setDuration(320)
+        slide_anim.setStartValue(QPoint(start_x, content.y()))
+        slide_anim.setEndValue(QPoint(original_x, content.y()))
+        slide_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        group = QParallelAnimationGroup()
+        group.addAnimation(fade_anim)
+        group.addAnimation(slide_anim)
+        group.start()
+        self._anim_group = group
 
     def _next(self):
         if self._current_step < len(self._steps) - 1:

@@ -58,9 +58,141 @@ def _get_macos_wifi_interface() -> str:
         pass
     return "en0" 
 
-def volume_up():
+# ── Volume — cached COM interface, scalar API, robust fallbacks ──────────
+#
+# Improvements vs. the original implementation:
+#   1. COM endpoint is cached at module load — get/set is now a single COM
+#      call instead of GetSpeakers + Activate + cast every time.
+#   2. Uses ``*Scalar`` APIs (0.0–1.0) instead of the dB API. This matches
+#      what the Windows volume slider shows — 50% on the slider is 0.5
+#      scalar, NOT -6 dB (the old code returned values that didn't match
+#      the slider).
+#   3. Supports both ``pycaw.pycaw`` (legacy) and ``pycaw`` (>=20230407)
+#      import paths.
+#   4. The fallback path actually changes the volume — the old code
+#      double-pressed ``volumemute`` which is a no-op.
+#   5. ``volume_up`` / ``volume_down`` use the relative ``VolumeStep`` API
+#      instead of hammering the keyboard 5 times.
+
+_VOLUME_ENDPOINT = None            # cached IAudioEndpointVolume pointer
+_VOLUME_BACKEND = None              # "pycaw" | "keypress" | "nircmd" | None
+_VOLUME_LOCK = __import__("threading").Lock()
+
+
+def _get_pycaw_classes():
+    """Import pycaw under either the old or the modern package path.
+
+    Returns ``(AudioUtilities, IAudioEndpointVolume)`` or ``None``.
+    """
+    try:
+        from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume  # legacy
+        return AudioUtilities, IAudioEndpointVolume
+    except Exception:
+        pass
+    try:
+        from pycaw import AudioUtilities, IAudioEndpointVolume         # >=20230407
+        return AudioUtilities, IAudioEndpointVolume
+    except Exception:
+        return None
+
+
+def _resolve_volume_endpoint():
+    """Resolve and cache the Windows master-volume COM endpoint.
+
+    Returns ``(IAudioEndpointVolume, backend_name)`` or ``(None, None)``.
+    """
+    global _VOLUME_ENDPOINT, _VOLUME_BACKEND
+    with _VOLUME_LOCK:
+        if _VOLUME_ENDPOINT is not None:
+            return _VOLUME_ENDPOINT, _VOLUME_BACKEND
+        if _OS != "Windows":
+            return None, None
+
+        classes = _get_pycaw_classes()
+        if classes is not None:
+            AudioUtilities, IAudioEndpointVolume = classes
+            try:
+                from ctypes import cast, POINTER
+                from comtypes import CLSCTX_ALL
+                devices   = AudioUtilities.GetSpeakers()
+                interface = devices.Activate(
+                    IAudioEndpointVolume._iid_, CLSCTX_ALL, None
+                )
+                endpoint  = cast(interface, POINTER(IAudioEndpointVolume))
+                _VOLUME_ENDPOINT = endpoint
+                _VOLUME_BACKEND  = "pycaw"
+                return endpoint, "pycaw"
+            except Exception as e:
+                print(f"[Settings] pycaw init failed: {e}")
+
+        # Check for NirCmd (third-party, common in scripts)
+        try:
+            r = subprocess.run(
+                ["where", "nircmd"], capture_output=True, text=True, timeout=2
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                _VOLUME_BACKEND = "nircmd"
+                return None, "nircmd"
+        except Exception:
+            pass
+
+        _VOLUME_BACKEND = "keypress"
+        return None, "keypress"
+
+
+def _set_via_nircmd(value: int) -> bool:
+    """Use NirCmd to set master volume. Requires nircmd.exe on PATH."""
+    if not 0 <= value <= 100:
+        return False
+    try:
+        subprocess.run(
+            ["nircmd", "setsysvolume", str(int(value * 655.35))],
+            capture_output=True, timeout=2,
+        )
+        return True
+    except Exception:
+        return False
+
+
+def _set_via_keypress(target: int) -> None:
+    """Best-effort keypress-based volume set when COM / NirCmd unavailable.
+
+    Strategy: read current volume (best estimate from keypresses), then
+    raise / lower via ``volumeup`` / ``volumedown`` until we hit the target.
+    Each press is ~2 percentage points in Windows default mapping.
+    """
+    cur = volume_get() or 50
+    delta = target - cur
+    if delta > 0:
+        key = "volumeup"
+        steps = min(delta // 2, 50)
+    elif delta < 0:
+        key = "volumedown"
+        steps = min(-delta // 2, 50)
+    else:
+        return
+    for _ in range(steps):
+        pyautogui.press(key)
+
+
+def volume_up(steps: int = 1):
     if _OS == "Windows":
-        for _ in range(5): pyautogui.press("volumeup")
+        endpoint, backend = _resolve_volume_endpoint()
+        if endpoint is not None:
+            try:
+                # 1 step = 2% on Windows default mapping
+                for _ in range(max(1, steps)):
+                    endpoint.VolumeStepUp(None)
+                return
+            except Exception as e:
+                print(f"[Settings] pycaw VolumeStepUp failed: {e}")
+        if backend == "nircmd":
+            cur = volume_get() or 50
+            _set_via_nircmd(min(100, cur + 2 * max(1, steps)))
+            return
+        # keypress fallback (1 step per keypress)
+        for _ in range(max(1, steps)):
+            pyautogui.press("volumeup")
     elif _OS == "Darwin":
         subprocess.run(["osascript", "-e",
             "set volume output volume (output volume of (get volume settings) + 10)"],
@@ -69,9 +201,23 @@ def volume_up():
         subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", "+10%"],
             capture_output=True)
 
-def volume_down():
+
+def volume_down(steps: int = 1):
     if _OS == "Windows":
-        for _ in range(5): pyautogui.press("volumedown")
+        endpoint, backend = _resolve_volume_endpoint()
+        if endpoint is not None:
+            try:
+                for _ in range(max(1, steps)):
+                    endpoint.VolumeStepDown(None)
+                return
+            except Exception as e:
+                print(f"[Settings] pycaw VolumeStepDown failed: {e}")
+        if backend == "nircmd":
+            cur = volume_get() or 50
+            _set_via_nircmd(max(0, cur - 2 * max(1, steps)))
+            return
+        for _ in range(max(1, steps)):
+            pyautogui.press("volumedown")
     elif _OS == "Darwin":
         subprocess.run(["osascript", "-e",
             "set volume output volume (output volume of (get volume settings) - 10)"],
@@ -80,8 +226,17 @@ def volume_down():
         subprocess.run(["pactl", "set-sink-volume", "@DEFAULT_SINK@", "-10%"],
             capture_output=True)
 
+
 def volume_mute():
     if _OS == "Windows":
+        endpoint, _backend = _resolve_volume_endpoint()
+        if endpoint is not None:
+            try:
+                muted = endpoint.GetMute()
+                endpoint.SetMute(not muted, None)
+                return
+            except Exception as e:
+                print(f"[Settings] pycaw mute toggle failed: {e}")
         pyautogui.press("volumemute")
     elif _OS == "Darwin":
         subprocess.run(["osascript", "-e", "set volume with output muted"],
@@ -90,25 +245,35 @@ def volume_mute():
         subprocess.run(["pactl", "set-sink-mute", "@DEFAULT_SINK@", "toggle"],
             capture_output=True)
 
+
 def volume_get() -> int | None:
     """Current master volume 0-100, or None if this platform will not say.
 
-    Undo needs a "before" value, and reading one is cheap on every OS we
-    support. Where it is not readable the action simply is not registered as
-    undoable — a wrong undo is worse than no undo."""
+    Uses the cached ``IAudioEndpointVolume`` and the *Scalar* API so the
+    value matches what the Windows volume slider shows. Returns ``None``
+    on platforms that can't read it — Undo then refuses to register a
+    change since a wrong undo is worse than no undo.
+    """
     try:
         if _OS == "Windows":
-            import math
-            from ctypes import cast, POINTER
-            from comtypes import CLSCTX_ALL
-            from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
-            devices   = AudioUtilities.GetSpeakers()
-            interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-            vol       = cast(interface, POINTER(IAudioEndpointVolume))
-            db        = vol.GetMasterVolumeLevel()
-            if db <= -65.0:
-                return 0
-            return max(0, min(100, round(10 ** (db / 20) * 100)))
+            endpoint, backend = _resolve_volume_endpoint()
+            if endpoint is not None:
+                # Scalar API: 0.0–1.0 — same units the slider shows.
+                scalar = endpoint.GetMasterVolumeLevelScalar()
+                return max(0, min(100, round(scalar * 100)))
+            if backend == "nircmd":
+                try:
+                    r = subprocess.run(
+                        ["nircmd", "getsysvolume"],
+                        capture_output=True, text=True, timeout=2,
+                    )
+                    if r.returncode == 0:
+                        v = int(r.stdout.strip())
+                        return max(0, min(100, round(v / 655.35)))
+                except Exception:
+                    pass
+            # keypress fallback can't read current volume
+            return None
         if _OS == "Darwin":
             r = subprocess.run(["osascript", "-e", "output volume of (get volume settings)"],
                                capture_output=True, text=True, timeout=5)
@@ -162,21 +327,21 @@ def brightness_set(value: int) -> None:
 def volume_set(value: int):
     value = max(0, min(100, int(value)))
     if _OS == "Windows":
-        try:
-            import math
-            from ctypes import cast, POINTER
-            from comtypes import CLSCTX_ALL
-            from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
-            devices   = AudioUtilities.GetSpeakers()
-            interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-            vol       = cast(interface, POINTER(IAudioEndpointVolume))
-            vol_db    = -65.25 if value == 0 else max(-65.25, 20 * math.log10(value / 100))
-            vol.SetMasterVolumeLevel(vol_db, None)
-            return
-        except Exception as e:
-            print(f"[Settings] pycaw failed, using keypress fallback: {e}")
-            pyautogui.press("volumemute")
-            pyautogui.press("volumemute")
+        endpoint, backend = _resolve_volume_endpoint()
+        if endpoint is not None:
+            try:
+                # Scalar API: 0.0–1.0 — same units the slider uses.
+                endpoint.SetMasterVolumeLevelScalar(value / 100.0, None)
+                return
+            except Exception as e:
+                print(f"[Settings] pycaw SetMasterVolumeLevelScalar failed: {e}")
+        if backend == "nircmd":
+            if _set_via_nircmd(value):
+                return
+        # Last-resort fallback: actual keypresses that change the volume,
+        # not the no-op "press mute twice" the old code did.
+        _set_via_keypress(value)
+        return
     elif _OS == "Darwin":
         subprocess.run(["osascript", "-e", f"set volume output volume {value}"],
             capture_output=True)

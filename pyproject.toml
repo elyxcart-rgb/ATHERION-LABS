@@ -1,0 +1,185 @@
+[build-system]
+requires = ["setuptools>=68", "wheel", "setuptools_scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sonic-ai"
+version = "2.5.0"
+description = "SONIC AI - Premium Jarvis-class desktop assistant with universal computer-use, auto-reply, multi-modal persona, and LLM integration"
+readme = "README.md"
+license = {text = "Proprietary - See LICENSE.txt"}
+authors = [
+    {name = "ATHERION Labs", email = "team@atherion.dev"},
+]
+keywords = [
+    "ai", "jarvis", "assistant", "voice", "computer-use",
+    "automation", "llm", "gemini", "persona", "auto-reply",
+    "universal-agent", "desktop-control", "speech-recognition"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Office/Business",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.11"
+dependencies = [
+    "PyQt6>=6.5",
+    "sounddevice>=0.4.6",
+    "google-genai>=2.8.0",
+    "google-generativeai",
+    "pillow>=10.0",
+    "requests>=2.31",
+    "beautifulsoup4>=4.12",
+    "ddgs>=9.0.0",
+    "playwright>=1.40",
+    "pyautogui>=0.9.54",
+    "pyperclip>=1.8",
+    "pygetwindow>=0.03",
+    "opencv-python>=4.8",
+    "numpy>=1.24",
+    "mss>=9.0",
+    "psutil>=5.9",
+    "send2trash>=1.8",
+    "youtube-transcript-api>=0.6",
+    "python-pptx>=0.6.21",
+    "fastapi>=0.104",
+    "uvicorn[standard]>=0.24",
+    "cryptography>=41.0",
+    "python-multipart>=0.0.6",
+    "pywin32>=306; sys_platform == 'win32'",
+    "comtypes>=1.2; sys_platform == 'win32'",
+    "pycaw>=20230407; sys_platform == 'win32'",
+    "win10toast>=0.9; sys_platform == 'win32'",
+    "pywinauto>=0.6.8; sys_platform == 'win32'",
+    "qrcode[pil]>=7.4",
+    "firebase-admin>=6.4",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-asyncio>=0.21",
+    "build>=1.0",
+    "twine>=4.0",
+    "setuptools_scm>=8.0",
+]
+universal = [
+    "playwright>=1.40",
+    "pywinauto>=0.6.8",
+    "pytesseract>=0.3.10",
+    "requests>=2.31",
+]
+voice = [
+    "sounddevice>=0.4.6",
+    "pycaw>=20230407",
+    "edge-tts>=6.1.9",
+]
+
+[project.urls]
+Homepage = "https://github.com/elyxcart-rgb/ATHERION-LABS"
+Repository = "https://github.com/elyxcart-rgb/ATHERION-LABS"
+Issues = "https://github.com/elyxcart-rgb/ATHERION-LABS/issues"
+Changelog = "https://github.com/elyxcart-rgb/ATHERION-LABS/blob/master/CHANGELOG.md"
+
+[project.scripts]
+sonic = "main:main"
+sonic-auto-reply = "scripts.start_auto_reply:main"
+sonic-persona-demo = "scripts.persona_demo:main"
+
+[project.gui-scripts]
+sonic = "main:main"
+
+[tool.setuptools]
+include-package-data = true
+zip-safe = false
+python_requires = ">=3.11"
+platforms = ["Windows"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "core*",
+    "actions*",
+    "auth*",
+    "automation*",
+    "bootstrap*",
+    "coding*",
+    "config*",
+    "dashboard*",
+    "emotion*",
+    "location*",
+    "memory*",
+    "plugins*",
+    "reliability*",
+    "security*",
+    "sonic*",
+    "tests*",
+    "ui*",
+    "updater*",
+]
+exclude = [
+    "backup_*",
+    "installer_output*",
+    "redist*",
+    "releases*",
+    "sonic-frontend-theme*",
+    "Sonic Player*",
+    "_brain_test_demo*",
+    "_regression_test*",
+    "_sanity_check_db*",
+    "calculator*",
+    "racing_game*",
+    "dist*",
+    "build*",
+    "*.tests",
+    "*.test",
+]
+
+[tool.setuptools.package-data]
+core = ["*.txt", "*.json", "*.yaml", "*.yml"]
+memory = ["*.db", "*.json"]
+automation = ["*.json", "*.yaml"]
+sonic = ["*.json"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["*.pyc", "*.pyo", "*.pyd", "*.so", ".DS_Store"]
+"core.tests" = ["*"]
+"core.universal.tests" = ["*"]
+"core.*.tests" = ["*"]
+
+[tool.setuptools_scm]
+write_to = "version_generated.py"
+fallback_version = "2.5.0"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q"
+testpaths = [
+    "core",
+    "core/universal/tests",
+    "core/universal",
+    "scripts",
+]
+python_files = [
+    "test_*.py",
+    "*_test.py",
+    "tests.py",
+]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312", "py313"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

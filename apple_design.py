@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import math
 from PyQt6.QtCore import (
-    Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint, QRectF, pyqtSignal,
-    QEventLoop,
+    Qt, QTimer, QPropertyAnimation, QEasingCurve, QPoint, QPointF, QRectF, pyqtSignal,
+    QEventLoop, QParallelAnimationGroup,
 )
 from PyQt6.QtGui import (
     QColor, QPainter, QLinearGradient, QRadialGradient, QFont,
@@ -17,7 +17,7 @@ from PyQt6.QtGui import (
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
     QLineEdit, QFrame, QGraphicsDropShadowEffect, QGraphicsOpacityEffect,
-    QSizePolicy,
+    QSizePolicy, QDialog, QApplication,
 )
 
 
@@ -366,17 +366,109 @@ class AppleGlassOverlay(QWidget):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# APPLE DIALOG (replaces QMessageBox)
+# APPLE DIALOG (replaces QMessageBox) — Apple-Level Premium
 # ═════════════════════════════════════════════════════════════════════════════
 
-class AppleDialog(QWidget):
-    """Apple-style modal dialog — replaces ugly QMessageBox."""
+class _AppleDialogIcon(QWidget):
+    """iOS-style icon glyph drawn with QPainter — no external assets."""
 
-    def __init__(self, title: str, message: str, buttons: list[tuple[str, str]] = None,
-                 parent=None):
-        """
-        buttons: list of (text, role) where role is 'primary' | 'secondary' | 'destructive'
-        """
+    SIZE = 44
+
+    def __init__(self, variant: str = "info", parent=None):
+        super().__init__(parent)
+        self._variant = variant
+        self.setFixedSize(self.SIZE, self.SIZE)
+
+    def paintEvent(self, event):
+        from PyQt6.QtGui import QPainterPath
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        cx = cy = self.SIZE / 2
+        bg = {
+            "info": QColor(Tokens.ACCENT),
+            "success": QColor(Tokens.SUCCESS),
+            "warning": QColor(Tokens.WARNING),
+            "error": QColor(Tokens.ERROR),
+            "question": QColor("#bf5af2"),
+        }.get(self._variant, QColor(Tokens.ACCENT))
+
+        if self._variant == "warning":
+            # Triangle for warning
+            path = QPainterPath()
+            r = self.SIZE / 2 - 1
+            path.moveTo(cx, 3)
+            path.lineTo(self.SIZE - 3, self.SIZE - 4)
+            path.lineTo(3, self.SIZE - 4)
+            path.closeSubpath()
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(bg)
+            p.drawPath(path)
+            # White "!"
+            p.setPen(QPen(QColor("white"), 3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            p.drawLine(QPointF(cx, cy - 7), QPointF(cx, cy + 3))
+            p.setBrush(QBrush(QColor("white")))
+            p.drawEllipse(QPointF(cx, cy + 8), 2, 2)
+        else:
+            # Circle for everything else
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(bg)
+            p.drawEllipse(2, 2, self.SIZE - 4, self.SIZE - 4)
+
+            p.setPen(QPen(QColor("white"), 3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            if self._variant == "success":
+                # Checkmark
+                path = QPainterPath()
+                path.moveTo(cx - 9, cy + 1)
+                path.lineTo(cx - 3, cy + 7)
+                path.lineTo(cx + 10, cy - 7)
+                p.drawPath(path)
+            elif self._variant == "error":
+                # X
+                p.drawLine(QPointF(cx - 8, cy - 8), QPointF(cx + 8, cy + 8))
+                p.drawLine(QPointF(cx + 8, cy - 8), QPointF(cx - 8, cy + 8))
+            elif self._variant == "info":
+                # "i" — dot above, line below
+                p.setBrush(QBrush(QColor("white")))
+                p.drawEllipse(QPointF(cx, cy - 8), 2.5, 2.5)
+                p.drawLine(QPointF(cx, cy - 3), QPointF(cx, cy + 10))
+            elif self._variant == "question":
+                # "?" — arc + dot
+                p.setPen(QPen(QColor("white"), 3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+                arc_rect = QRectF(cx - 7, cy - 10, 14, 14)
+                p.drawArc(arc_rect, 60 * 16, 180 * 16)
+                p.drawLine(QPointF(cx, cy + 6), QPointF(cx, cy + 6))
+                p.setBrush(QBrush(QColor("white")))
+                p.drawEllipse(QPointF(cx, cy + 11), 2, 2)
+        p.end()
+
+
+class AppleDialog(QDialog):
+    """Apple-style modal dialog — replaces QMessageBox.
+
+    Backward-compatible constructor:
+        AppleDialog(title, message, buttons=None, parent=None)
+
+    New (optional) keyword args:
+        variant:      'info' | 'success' | 'warning' | 'error' | 'question'
+        details:      optional secondary body text (rendered smaller, dimmer)
+        cancellable:  if True (default), Escape dismisses with result=None
+        primary_index: index of the button activated by Enter/Space (default 0)
+
+    Backward-compatible methods:
+        exec()                  — inherited from QDialog, blocks modally
+        get_result() -> str|None — returns clicked button text, or None on cancel
+        close()                 — inherited
+    """
+
+    def __init__(self, title: str, message: str,
+                 buttons: list[tuple[str, str]] = None,
+                 parent=None,
+                 *,
+                 variant: str = "info",
+                 details: str = "",
+                 cancellable: bool = True,
+                 primary_index: int = 0):
         super().__init__(parent)
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
@@ -384,100 +476,393 @@ class AppleDialog(QWidget):
             | Qt.WindowType.WindowStaysOnTopHint
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.setFixedSize(380, 200)
+        self.setModal(True)
+
         self._result = None
-        self._buttons = buttons or [("OK", "primary")]
+        self._buttons = list(buttons) if buttons else [("OK", "primary")]
+        self._primary_index = (
+            primary_index if 0 <= primary_index < len(self._buttons) else 0
+        )
+        self._cancellable = cancellable
         self._drag_pos = None
-        self._closed = False
-        self._build_ui(title, message)
 
-    def exec(self):
-        """Show modal and block until closed."""
-        from PyQt6.QtWidgets import QApplication
-        self.show()
-        self.raise_()
-        self.activateWindow()
-        # Block until closed
-        loop = QEventLoop()
-        self._loop = loop
-        self.destroyed.connect(lambda: loop.quit() if not loop.isRunning() else None)
-        loop.exec()
+        self._build_ui(title, message, variant, details)
+        self._adjust_size()
+        self._center_on_parent()
+        # Start invisible, fade in after layout settles
+        self.setWindowOpacity(0.0)
+        QTimer.singleShot(0, self._fade_in)
 
-    def close(self):
-        self._closed = True
-        self._result = self._result
-        super().close()
-        if hasattr(self, '_loop') and self._loop.isRunning():
-            self._loop.quit()
+    # ── UI construction ────────────────────────────────────────────────────
 
-    def _build_ui(self, title: str, message: str):
-        # Background
-        self._bg = QWidget(self)
-        self._bg.setGeometry(0, 0, 380, 200)
-        self._bg.setStyleSheet(f"""
-            QWidget {{
+    def _build_ui(self, title: str, message: str, variant: str, details: str):
+        # Container with rounded corners + shadow
+        self._container = QFrame(self)
+        self._container.setObjectName("AppleDialogContainer")
+        self._container.setStyleSheet(f"""
+            QFrame#AppleDialogContainer {{
                 background: {Tokens.BG_ELEVATED};
                 border: 1px solid {Tokens.BORDER_LIGHT};
                 border-radius: {Tokens.R_XL}px;
             }}
         """)
+        shadow = QGraphicsDropShadowEffect(self._container)
+        shadow.setBlurRadius(60)
+        shadow.setColor(QColor(0, 0, 0, 140))
+        shadow.setOffset(0, 12)
+        self._container.setGraphicsEffect(shadow)
 
-        layout = QVBoxLayout(self._bg)
-        layout.setContentsMargins(28, 24, 28, 20)
-        layout.setSpacing(0)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(self._container)
 
-        # Title
+        root = QVBoxLayout(self._container)
+        root.setContentsMargins(Tokens.XXL, Tokens.XL, Tokens.XXL, Tokens.LG)
+        root.setSpacing(0)
+
+        # ── Header: icon + title ─────────────────────────────────────────
+        header = QHBoxLayout()
+        header.setSpacing(Tokens.MD)
+        header.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+        self._icon = _AppleDialogIcon(variant, self._container)
+        header.addWidget(self._icon, 0, Qt.AlignmentFlag.AlignTop)
+
+        title_col = QVBoxLayout()
+        title_col.setSpacing(6)
+        title_col.setContentsMargins(0, 2, 0, 0)
+
         title_lbl = QLabel(title)
-        title_lbl.setFont(Tokens.font(15, QFont.Weight.Bold))
-        title_lbl.setStyleSheet(f"color: {Tokens.TEXT_PRIMARY}; background: transparent;")
-        layout.addWidget(title_lbl)
+        title_lbl.setFont(Tokens.font(15, QFont.Weight.DemiBold))
+        title_lbl.setStyleSheet(
+            f"color: {Tokens.TEXT_PRIMARY}; background: transparent;"
+        )
+        title_lbl.setWordWrap(True)
+        title_lbl.setObjectName("AppleDialogTitle")
+        title_col.addWidget(title_lbl)
 
-        layout.addSpacing(8)
-
-        # Message
         msg_lbl = QLabel(message)
         msg_lbl.setFont(Tokens.font(13))
-        msg_lbl.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent;")
+        msg_lbl.setStyleSheet(
+            f"color: {Tokens.TEXT_SECONDARY}; background: transparent;"
+        )
         msg_lbl.setWordWrap(True)
-        layout.addWidget(msg_lbl)
+        msg_lbl.setTextFormat(Qt.TextFormat.PlainText)
+        msg_lbl.setObjectName("AppleDialogMessage")
+        title_col.addWidget(msg_lbl)
 
-        layout.addStretch()
+        header.addLayout(title_col, 1)
+        root.addLayout(header)
 
-        # Buttons
+        # ── Optional details block ──────────────────────────────────────
+        if details:
+            root.addSpacing(Tokens.LG)
+            details_lbl = QLabel(details)
+            details_lbl.setFont(Tokens.font(12))
+            details_lbl.setStyleSheet(
+                f"color: {Tokens.TEXT_TERTIARY}; background: transparent;"
+            )
+            details_lbl.setWordWrap(True)
+            details_lbl.setTextFormat(Qt.TextFormat.PlainText)
+            root.addWidget(details_lbl)
+
+        # ── Buttons row ─────────────────────────────────────────────────
+        root.addSpacing(Tokens.XL)
+
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(8)
-        btn_row.addStretch()
+        btn_row.setSpacing(Tokens.SM)
+        btn_row.addStretch(1)
 
-        for text, role in self._buttons:
+        self._btn_widgets: list[AppleButton] = []
+        for i, (text, role) in enumerate(self._buttons):
             btn = AppleButton(text, style=role)
-            btn.setFixedSize(max(80, len(text) * 9 + 30), 32)
-            btn.clicked.connect(lambda checked, r=role, t=text: self._on_click(r, t))
+            btn.setMinimumWidth(110)
+            btn.setFixedHeight(36)
+            btn.clicked.connect(lambda _checked=False, t=text: self._on_click(t))
+            if i == self._primary_index:
+                btn.setDefault(True)
+                btn.setAutoDefault(True)
             btn_row.addWidget(btn)
+            self._btn_widgets.append(btn)
 
-        layout.addLayout(btn_row)
+        root.addLayout(btn_row)
 
-        # Shadow
-        shadow = QGraphicsDropShadowEffect()
-        shadow.setBlurRadius(40)
-        shadow.setColor(QColor(0, 0, 0, 80))
-        shadow.setOffset(0, 8)
-        self._bg.setGraphicsEffect(shadow)
+        # Focus the primary button by default
+        if self._btn_widgets:
+            self._btn_widgets[self._primary_index].setFocus()
 
-    def _on_click(self, role: str, text: str):
-        self._result = text
-        self.close()
+    # ── Sizing & positioning ──────────────────────────────────────────────
 
-    def get_result(self) -> str:
+    def _adjust_size(self):
+        # Let the container compute its size hint based on content
+        self._container.adjustSize()
+        hint = self._container.sizeHint()
+        # Sensible bounds — clamp so the dialog never looks ridiculous
+        w = max(360, min(560, hint.width()))
+        # Container is exactly w wide; let height follow content but cap
+        self._container.setFixedWidth(w)
+        self._container.adjustSize()
+        h = max(160, min(420, self._container.sizeHint().height()))
+        self.resize(w + 2, h + 2)  # +2 for the 1px outer border feel
+
+    def _center_on_parent(self):
+        parent = self.parentWidget()
+        if parent is not None and parent.isVisible():
+            pg = parent.frameGeometry()
+            self.move(
+                pg.x() + (pg.width() - self.width()) // 2,
+                pg.y() + (pg.height() - self.height()) // 2,
+            )
+            return
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            avail = screen.availableGeometry()
+            self.move(
+                avail.x() + (avail.width() - self.width()) // 2,
+                avail.y() + (avail.height() - self.height()) // 2,
+            )
+
+    def _fade_in(self):
+        anim = QPropertyAnimation(self, b"windowOpacity")
+        anim.setDuration(180)
+        anim.setStartValue(0.0)
+        anim.setEndValue(1.0)
+        anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        anim.start()
+        self._fade_anim = anim
+
+    # ── Public API (backward-compatible) ──────────────────────────────────
+
+    def get_result(self):
+        """Returns clicked button text, or None if dismissed (Escape / close)."""
         return self._result
+
+    def _on_click(self, text: str):
+        self._result = text
+        self.accept()
+
+    # ── Keyboard handling ─────────────────────────────────────────────────
+
+    def keyPressEvent(self, event):
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+            self._activate_primary()
+            event.accept()
+            return
+        if event.key() == Qt.Key.Key_Escape:
+            if self._cancellable:
+                self._result = None
+                self.reject()
+            event.accept()
+            return
+        # Tab cycles through buttons
+        if event.key() == Qt.Key.Key_Tab:
+            if self._btn_widgets:
+                cur = self._btn_widgets.index(self.focusWidget()) \
+                    if self.focusWidget() in self._btn_widgets else -1
+                nxt = (cur + 1) % len(self._btn_widgets)
+                self._btn_widgets[nxt].setFocus()
+                event.accept()
+                return
+        super().keyPressEvent(event)
+
+    def _activate_primary(self):
+        if not self._btn_widgets:
+            return
+        text = self._buttons[self._primary_index][0]
+        self._on_click(text)
+
+    # ── Drag support ──────────────────────────────────────────────────────
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
-            self._drag_pos = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self._drag_pos = (
+                event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            )
+            event.accept()
 
     def mouseMoveEvent(self, event):
         if self._drag_pos and event.buttons() & Qt.MouseButton.LeftButton:
             self.move(event.globalPosition().toPoint() - self._drag_pos)
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        self._drag_pos = None
+        super().mouseReleaseEvent(event)
+
+    # ── Convenience static helpers ────────────────────────────────────────
+
+    @staticmethod
+    def show_info(parent, title: str, message: str, **kwargs):
+        return AppleDialog(title, message, buttons=[("OK", "primary")],
+                           parent=parent, variant="info", **kwargs)
+
+    @staticmethod
+    def show_success(parent, title: str, message: str, **kwargs):
+        return AppleDialog(title, message, buttons=[("OK", "primary")],
+                           parent=parent, variant="success", **kwargs)
+
+    @staticmethod
+    def show_warning(parent, title: str, message: str, **kwargs):
+        return AppleDialog(title, message, buttons=[("OK", "primary")],
+                           parent=parent, variant="warning", **kwargs)
+
+    @staticmethod
+    def show_error(parent, title: str, message: str, **kwargs):
+        return AppleDialog(title, message, buttons=[("OK", "primary")],
+                           parent=parent, variant="error", **kwargs)
+
+    @staticmethod
+    def show_question(parent, title: str, message: str,
+                      ok_text: str = "OK", cancel_text: str = "Cancel",
+                      destructive: bool = False, **kwargs):
+        primary_role = "destructive" if destructive else "primary"
+        return AppleDialog(
+            title, message,
+            buttons=[(cancel_text, "secondary"), (ok_text, primary_role)],
+            parent=parent, variant="question", **kwargs,
+        )
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# APPLE TOAST — non-modal notification, auto-dismisses
+# ═════════════════════════════════════════════════════════════════════════════
+
+class AppleToast(QWidget):
+    """Apple-style toast — slides in from bottom-right, auto-dismisses.
+
+    Usage:
+        AppleToast.show(parent, "Saved successfully", variant="success")
+    """
+
+    def __init__(self, message: str, variant: str = "info",
+                 duration_ms: int = 3500, parent=None):
+        super().__init__(parent)
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.Tool
+            | Qt.WindowType.WindowStaysOnTopHint
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        self._duration_ms = duration_ms
+        self._build_ui(message, variant)
+        self._position()
+        self.setWindowOpacity(0.0)
+        QTimer.singleShot(0, self._slide_in)
+        QTimer.singleShot(duration_ms, self._slide_out)
+
+    def _build_ui(self, message: str, variant: str):
+        container = QFrame(self)
+        container.setStyleSheet(f"""
+            QFrame {{
+                background: {Tokens.BG_ELEVATED};
+                border: 1px solid {Tokens.BORDER_LIGHT};
+                border-radius: 14px;
+            }}
+        """)
+        shadow = QGraphicsDropShadowEffect(container)
+        shadow.setBlurRadius(40)
+        shadow.setColor(QColor(0, 0, 0, 100))
+        shadow.setOffset(0, 6)
+        container.setGraphicsEffect(shadow)
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.addWidget(container)
+
+        row = QHBoxLayout(container)
+        row.setContentsMargins(14, 12, 18, 12)
+        row.setSpacing(10)
+
+        icon = _AppleDialogIcon(variant, container)
+        icon.setFixedSize(28, 28)
+        row.addWidget(icon, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        lbl = QLabel(message)
+        lbl.setFont(Tokens.font(13, QFont.Weight.Medium))
+        lbl.setStyleSheet(
+            f"color: {Tokens.TEXT_PRIMARY}; background: transparent;"
+        )
+        lbl.setWordWrap(True)
+        lbl.setMaximumWidth(360)
+        row.addWidget(lbl, 1, Qt.AlignmentFlag.AlignVCenter)
+
+        self._container = container
+        self.adjustSize()
+
+    def _position(self):
+        # Anchor to the parent's bottom-right; fall back to primary screen.
+        parent = self.parentWidget()
+        if parent and parent.isVisible():
+            pg = parent.frameGeometry()
+            x = pg.right() - self.width() - 24
+            y = pg.bottom() - self.height() - 24
+        else:
+            screen = QApplication.primaryScreen()
+            if screen is not None:
+                avail = screen.availableGeometry()
+                x = avail.right() - self.width() - 24
+                y = avail.bottom() - self.height() - 24
+            else:
+                x, y = 0, 0
+        self._target_pos = QPoint(x, y)
+        self.move(x, y + 16)  # start 16px below for slide animation
+
+    def _slide_in(self):
+        anim = QParallelAnimationGroup(self)
+        fade = QPropertyAnimation(self, b"windowOpacity")
+        fade.setDuration(220)
+        fade.setStartValue(0.0)
+        fade.setEndValue(1.0)
+        fade.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        slide = QPropertyAnimation(self, b"pos")
+        slide.setDuration(260)
+        slide.setStartValue(self.pos())
+        slide.setEndValue(self._target_pos)
+        slide.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        anim.addAnimation(fade)
+        anim.addAnimation(slide)
+        anim.start()
+        self._in_anim = anim
+
+    def _slide_out(self):
+        anim = QParallelAnimationGroup(self)
+        fade = QPropertyAnimation(self, b"windowOpacity")
+        fade.setDuration(200)
+        fade.setStartValue(1.0)
+        fade.setEndValue(0.0)
+        fade.setEasingCurve(QEasingCurve.Type.InCubic)
+
+        slide = QPropertyAnimation(self, b"pos")
+        slide.setDuration(220)
+        slide.setStartValue(self.pos())
+        end = QPoint(self.pos().x(), self.pos().y() + 12)
+        slide.setEndValue(end)
+        slide.setEasingCurve(QEasingCurve.Type.InCubic)
+
+        anim.addAnimation(fade)
+        anim.addAnimation(slide)
+        anim.finished.connect(self.close)
+        anim.start()
+        self._out_anim = anim
+
+    @staticmethod
+    def notify(parent, message: str, variant: str = "info",
+               duration_ms: int = 3500) -> "AppleToast":
+        """Static convenience: build, show, and return the toast widget.
+
+        Usage:
+            AppleToast.notify(self, "Saved successfully", variant="success")
+        """
+        t = AppleToast(message, variant=variant, duration_ms=duration_ms,
+                       parent=parent)
+        # Use the QWidget show() directly — instance method is shadowed by
+        # our static helper above, but here we're inside the class so it works.
+        from PyQt6.QtWidgets import QWidget as _QW
+        _QW.show(t)
+        return t
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -544,7 +929,7 @@ class AppleCheckmark(QWidget):
 
         # Animated circle drawing
         span = int(360 * 16 * self._progress)
-        p.drawArc(QPointF(cx, cy), r * 2, r * 2, 90 * 16, -span)
+        p.drawArc(QRectF(cx - r, cy - r, r * 2, r * 2), 90 * 16, -span)
 
         # Checkmark
         if self._progress > 0.6:

@@ -7,11 +7,11 @@ The updater fetches release info from GitHub API — no hardcoded update URLs he
 from __future__ import annotations
 
 # ── Semantic version (major.minor.patch) ────────────────────────────────────
-APP_VERSION: str = "2.4.0"
+APP_VERSION: str = "2.5.0"
 
 # ── Build metadata (set by release.py) ──────────────────────────────────────
-BUILD_VERSION: str = "1.0.0+build.0"
-BUILD_DATE: str = "2026-09-19"
+BUILD_VERSION: str = "1.1.0+build.universal-engine"
+BUILD_DATE: str = "2026-10-18"
 
 # ── Application identity ────────────────────────────────────────────────────
 APP_NAME: str = "SONIC Apex"

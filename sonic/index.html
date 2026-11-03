@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SONIC AI — Neural Interface</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Rajdhani:wght@300;400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Particle Background -->
+  <canvas id="particle-canvas"></canvas>
+
+  <!-- Animated Grid Overlay -->
+  <div class="grid-overlay"></div>
+
+  <!-- Scan Line Effect -->
+  <div class="scan-line"></div>
+
+  <!-- Main Container -->
+  <div class="sonic-container">
+
+    <!-- Top HUD Bar -->
+    <header class="hud-header">
+      <div class="header-left">
+        <div class="logo-section">
+          <div class="logo-icon">
+            <svg viewBox="0 0 60 60" class="logo-svg">
+              <defs>
+                <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" style="stop-color:#00d9ff;stop-opacity:1" />
+                  <stop offset="100%" style="stop-color:#00eaff;stop-opacity:0.6" />
+                </linearGradient>
+              </defs>
+              <circle cx="30" cy="30" r="28" fill="none" stroke="url(#logoGrad)" stroke-width="1.5" opacity="0.6"/>
+              <circle cx="30" cy="30" r="22" fill="none" stroke="#00d9ff" stroke-width="0.5" opacity="0.3"/>
+              <path d="M30 8 L30 52" stroke="#00d9ff" stroke-width="0.5" opacity="0.2"/>
+              <path d="M8 30 L52 30" stroke="#00d9ff" stroke-width="0.5" opacity="0.2"/>
+              <text x="30" y="35" text-anchor="middle" fill="url(#logoGrad)" font-family="Orbitron" font-size="12" font-weight="700">S</text>
+            </svg>
+          </div>
+          <div class="logo-text">
+            <span class="logo-main">SONIC</span>
+            <span class="logo-sub">NEURAL INTERFACE v4.7</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="system-status">
+          <div class="status-indicator active">
+            <span class="status-dot"></span>
+            <span class="status-text">SYSTEM ONLINE</span>
+          </div>
+          <div class="status-divider"></div>
+          <div class="status-metric">
+            <span class="metric-label">NEURAL LINK</span>
+            <span class="metric-value" id="neural-status">ACTIVE</span>
+          </div>
+          <div class="status-divider"></div>
+          <div class="status-metric">
+            <span class="metric-label">QUANTUM CORE</span>
+            <span class="metric-value" id="quantum-status">STABLE</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div class="time-display">
+          <span class="time-label">LOCAL TIME</span>
+          <span class="time-value" id="current-time">00:00:00</span>
+        </div>
+        <div class="date-display">
+          <span class="date-value" id="current-date">2026.09.22</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+
+      <!-- Left Panel - System Metrics -->
+      <aside class="panel panel-left">
+        <div class="panel-header">
+          <span class="panel-title">SYSTEM METRICS</span>
+          <span class="panel-indicator"></span>
+        </div>
+
+        <div class="metrics-grid">
+          <!-- CPU Usage -->
+          <div class="metric-card">
+            <div class="metric-header">
+              <span class="metric-icon">⬡</span>
+              <span class="metric-name">CPU LOAD</span>
+            </div>
+            <div class="gauge-container">
+              <svg class="gauge-svg" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#0a0d12" stroke-width="8"/>
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#00d9ff" stroke-width="8"
+                        stroke-dasharray="283" stroke-dashoffset="70" stroke-linecap="round"
+                        class="gauge-fill" id="cpu-gauge"/>
+                <text x="50" y="48" text-anchor="middle" fill="#00d9ff" font-family="Orbitron" font-size="14" font-weight="700" id="cpu-text">75%</text>
+                <text x="50" y="62" text-anchor="middle" fill="#4a5568" font-family="Share Tech Mono" font-size="8">PROCESSING</text>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Memory Usage -->
+          <div class="metric-card">
+            <div class="metric-header">
+              <span class="metric-icon">◈</span>
+              <span class="metric-name">MEMORY</span>
+            </div>
+            <div class="gauge-container">
+              <svg class="gauge-svg" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#0a0d12" stroke-width="8"/>
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#b87a3a" stroke-width="8"
+                        stroke-dasharray="283" stroke-dashoffset="100" stroke-linecap="round"
+                        class="gauge-fill" id="mem-gauge"/>
+                <text x="50" y="48" text-anchor="middle" fill="#b87a3a" font-family="Orbitron" font-size="14" font-weight="700" id="mem-text">65%</text>
+                <text x="50" y="62" text-anchor="middle" fill="#4a5568" font-family="Share Tech Mono" font-size="8">ALLOCATED</text>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Neural Network Status -->
+          <div class="metric-card wide">
+            <div class="metric-header">
+              <span class="metric-icon">◉</span>
+              <span class="metric-name">NEURAL ACTIVITY</span>
+            </div>
+            <div class="waveform-container">
+              <canvas id="waveform-canvas" width="280" height="60"></canvas>
+            </div>
+            <div class="neural-stats">
+              <div class="neural-stat">
+                <span class="stat-label">SYNAPSES</span>
+                <span class="stat-value" id="synapse-count">847.2K</span>
+              </div>
+              <div class="neural-stat">
+                <span class="stat-label">FIRE RATE</span>
+                <span class="stat-value" id="fire-rate">12.4ms</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Process List -->
+          <div class="metric-card wide">
+            <div class="metric-header">
+              <span class="metric-icon">◆</span>
+              <span class="metric-name">ACTIVE PROCESSES</span>
+            </div>
+            <div class="process-list">
+              <div class="process-item">
+                <span class="process-name">sonic_core.exe</span>
+                <span class="process-status running">RUNNING</span>
+              </div>
+              <div class="process-item">
+                <span class="process-name">neural_engine.dll</span>
+                <span class="process-status running">RUNNING</span>
+              </div>
+              <div class="process-item">
+                <span class="process-name">quantum_sim.sys</span>
+                <span class="process-status standby">STANDBY</span>
+              </div>
+              <div class="process-item">
+                <span class="process-name">voice_module.io</span>
+                <span class="process-status running">RUNNING</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center Panel - Main Interface -->
+      <section class="panel panel-center">
+        <!-- Arc Reactor Display -->
+        <div class="arc-reactor-container">
+          <div class="arc-reactor">
+            <div class="reactor-ring ring-outer"></div>
+            <div class="reactor-ring ring-middle"></div>
+            <div class="reactor-ring ring-inner"></div>
+            <div class="reactor-core"></div>
+            <div class="reactor-pulse"></div>
+          </div>
+          <div class="reactor-label">
+            <span class="reactor-title">SONIC CORE</span>
+            <span class="reactor-status" id="core-status">NEURAL PROCESSING ACTIVE</span>
+          </div>
+        </div>
+
+        <!-- Chat Interface -->
+        <div class="chat-container">
+          <div class="chat-header">
+            <span class="chat-title">COMMUNICATION CHANNEL</span>
+            <div class="chat-controls">
+              <button class="chat-btn" id="clear-btn" title="Clear chat">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                </svg>
+              </button>
+              <button class="chat-btn" id="settings-btn" title="Settings">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <div class="chat-messages" id="chat-messages">
+            <!-- System messages will appear here -->
+            <div class="message system-message">
+              <div class="message-content">
+                <span class="message-icon">⚡</span>
+                <span class="message-text">SONIC Neural Interface initialized. All systems nominal. Ready for command input.</span>
+              </div>
+              <span class="message-time">SYSTEM</span>
+            </div>
+          </div>
+
+          <!-- Voice Waveform Visualizer -->
+          <div class="voice-visualizer" id="voice-visualizer">
+            <canvas id="voice-canvas" width="600" height="40"></canvas>
+            <span class="voice-status" id="voice-status">VOICE MODULE STANDBY</span>
+          </div>
+
+          <!-- Input Area -->
+          <div class="chat-input-container">
+            <button class="input-btn mic-btn" id="mic-btn" title="Voice input">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+                <path d="M19 10v2a7 7 0 01-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+            </button>
+            <div class="input-wrapper">
+              <input type="text" class="chat-input" id="chat-input" placeholder="Enter command..." autocomplete="off">
+              <div class="input-glow"></div>
+            </div>
+            <button class="input-btn send-btn" id="send-btn" title="Send command">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Panel - Activity Log -->
+      <aside class="panel panel-right">
+        <div class="panel-header">
+          <span class="panel-title">ACTIVITY LOG</span>
+          <span class="panel-indicator"></span>
+        </div>
+
+        <div class="activity-timeline">
+          <div class="timeline-item active">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <span class="timeline-time">NOW</span>
+              <span class="timeline-text">Neural interface connected</span>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <span class="timeline-time">00:02:34</span>
+              <span class="timeline-text">System diagnostics complete</span>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <span class="timeline-time">00:01:12</span>
+              <span class="timeline-text">Voice module initialized</span>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <span class="timeline-time">00:00:45</span>
+              <span class="timeline-text">Quantum core online</span>
+            </div>
+          </div>
+          <div class="timeline-item">
+            <div class="timeline-marker"></div>
+            <div class="timeline-content">
+              <span class="timeline-time">00:00:01</span>
+              <span class="timeline-text">SONIC AI v4.7 booting</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="panel-section">
+          <div class="panel-header small">
+            <span class="panel-title">QUICK ACTIONS</span>
+          </div>
+          <div class="quick-actions">
+            <button class="action-btn" data-action="system-scan">
+              <span class="action-icon">⟁</span>
+              <span class="action-label">System Scan</span>
+            </button>
+            <button class="action-btn" data-action="optimize">
+              <span class="action-icon">⟐</span>
+              <span class="action-label">Optimize</span>
+            </button>
+            <button class="action-btn" data-action="diagnostics">
+              <span class="action-icon">⊡</span>
+              <span class="action-label">Diagnostics</span>
+            </button>
+            <button class="action-btn" data-action="security">
+              <span class="action-icon">◇</span>
+              <span class="action-label">Security</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Network Status -->
+        <div class="panel-section">
+          <div class="panel-header small">
+            <span class="panel-title">NETWORK</span>
+          </div>
+          <div class="network-stats">
+            <div class="net-stat">
+              <span class="net-label">DOWN</span>
+              <span class="net-value" id="net-down">24.8 MB/s</span>
+              <div class="net-bar">
+                <div class="net-bar-fill down" style="width: 72%"></div>
+              </div>
+            </div>
+            <div class="net-stat">
+              <span class="net-label">UP</span>
+              <span class="net-value" id="net-up">8.4 MB/s</span>
+              <div class="net-bar">
+                <div class="net-bar-fill up" style="width: 34%"></div>
+              </div>
+            </div>
+            <div class="net-stat">
+              <span class="net-label">LATENCY</span>
+              <span class="net-value" id="net-latency">12ms</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Bottom HUD Bar -->
+    <footer class="hud-footer">
+      <div class="footer-left">
+        <div class="footer-stat">
+          <span class="footer-label">UPTIME</span>
+          <span class="footer-value" id="uptime">00:00:00</span>
+        </div>
+        <div class="footer-divider"></div>
+        <div class="footer-stat">
+          <span class="footer-label">TASKS</span>
+          <span class="footer-value" id="task-count">0</span>
+        </div>
+      </div>
+
+      <div class="footer-center">
+        <div class="command-hint">
+          <span class="hint-key">ENTER</span>
+          <span class="hint-text">to send</span>
+          <span class="hint-separator">|</span>
+          <span class="hint-key">ESC</span>
+          <span class="hint-text">to clear</span>
+          <span class="hint-separator">|</span>
+          <span class="hint-key">↑↓</span>
+          <span class="hint-text">history</span>
+        </div>
+      </div>
+
+      <div class="footer-right">
+        <div class="footer-stat">
+          <span class="footer-label">THREAT LEVEL</span>
+          <span class="footer-value safe" id="threat-level">MINIMAL</span>
+        </div>
+        <div class="footer-divider"></div>
+        <div class="footer-stat">
+          <span class="footer-label">ENCRYPTION</span>
+          <span class="footer-value" id="encryption-status">AES-256</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loading-overlay">
+    <div class="loading-content">
+      <div class="loading-reactor">
+        <div class="loading-ring"></div>
+        <div class="loading-ring"></div>
+        <div class="loading-ring"></div>
+      </div>
+      <div class="loading-text">
+        <span class="loading-title">INITIALIZING SONIC</span>
+        <span class="loading-subtitle" id="loading-status">Loading neural pathways...</span>
+      </div>
+      <div class="loading-bar">
+        <div class="loading-bar-fill" id="loading-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

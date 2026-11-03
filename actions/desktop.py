@@ -298,13 +298,16 @@ FILE_TYPE_MAP = {
 }
 
 _SKIP_EXTENSIONS = {
-    "Windows": {".lnk", ".url"},
-    "Darwin":  {".webloc"},
-    "Linux":   {".desktop"},
+    "Windows": set(),          # .lnk / .url no longer auto-skipped — many desktops are mostly shortcuts
+    "Darwin":  set(),          # .webloc no longer auto-skipped
+    "Linux":   set(),          # .desktop no longer auto-skipped
 }
 
+# Shortcut extensions — get bucketed into the "Shortcuts" folder rather than skipped
+_SHORTCUT_EXTENSIONS = {".lnk", ".url", ".webloc", ".desktop"}
 
-def organize_desktop(mode: str = "by_type") -> str:
+
+def organize_desktop(mode: str = "by_type", include_shortcuts: bool = True) -> str:
     desktop       = _get_desktop()
     skip_exts     = _SKIP_EXTENSIONS.get(_OS, set())
     moved, skipped = [], []
@@ -312,19 +315,25 @@ def organize_desktop(mode: str = "by_type") -> str:
     for item in desktop.iterdir():
         if item.is_dir() or item.name.startswith("."):
             continue
-        if item.suffix.lower() in skip_exts:
+        ext = item.suffix.lower()
+        if ext in skip_exts:
+            continue
+        # Shortcuts (.lnk / .url / .webloc / .desktop) — only skip if explicitly disabled
+        if ext in _SHORTCUT_EXTENSIONS and not include_shortcuts:
             continue
 
         if mode == "by_date":
             mtime       = datetime.fromtimestamp(item.stat().st_mtime)
             folder_name = mtime.strftime("%Y-%m")
         else:
-            ext         = item.suffix.lower()
             folder_name = "Others"
-            for folder, exts in FILE_TYPE_MAP.items():
-                if ext in exts:
-                    folder_name = folder
-                    break
+            if ext in _SHORTCUT_EXTENSIONS:
+                folder_name = "Shortcuts"
+            else:
+                for folder, exts in FILE_TYPE_MAP.items():
+                    if ext in exts:
+                        folder_name = folder
+                        break
 
         target_dir = desktop / folder_name
         target_dir.mkdir(exist_ok=True)
@@ -446,7 +455,11 @@ def desktop_control(
             return get_current_wallpaper()
 
         elif action == "organize":
-            return organize_desktop(params.get("mode", "by_type"))
+            include_shortcuts = params.get("include_shortcuts", True)
+            return organize_desktop(
+                params.get("mode", "by_type"),
+                include_shortcuts=include_shortcuts,
+            )
 
         elif action == "clean":
             return clean_desktop()

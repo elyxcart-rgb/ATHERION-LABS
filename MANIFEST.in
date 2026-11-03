@@ -1,0 +1,36 @@
+include LICENSE.txt
+include README.md
+include CHANGELOG.md
+include requirements.txt
+include version.py
+include apple_design.py
+include build.py
+include release.py
+include LICENSE.txt
+recursive-include core *.txt
+recursive-include core *.json
+recursive-include core *.yaml
+recursive-include core *.yml
+recursive-include memory *.db
+recursive-include memory *.json
+recursive-include plugins *.json
+recursive-include automation *.json
+recursive-include sonic *.json
+recursive-exclude * __pycache__
+recursive-exclude * *.py[cod]
+recursive-exclude * *.so
+exclude *.exe
+exclude *.pkg
+exclude *.pyz
+exclude dist
+exclude build
+exclude installer_output
+exclude racing_game
+exclude tmp*.txt
+exclude _*.py
+exclude _out.txt
+exclude run_output.txt
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude .DS_Store
+global-exclude *.so

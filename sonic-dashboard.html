@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SONIC AI — Command Interface</title>
+    <link rel="stylesheet" href="sonic-dashboard.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <canvas id="particle-canvas"></canvas>
+    <div class="scanline-overlay"></div>
+    <div class="vignette-overlay"></div>
+
+    <div class="boot-screen" id="boot-screen">
+        <div class="boot-content">
+            <div class="boot-logo">
+                <svg viewBox="0 0 200 200" class="boot-hex">
+                    <polygon points="100,10 185,55 185,145 100,190 15,145 15,55"
+                             fill="none" stroke="#00d9ff" stroke-width="1" opacity="0.4"/>
+                    <polygon points="100,25 172,62 172,138 100,175 28,138 28,62"
+                             fill="none" stroke="#00d9ff" stroke-width="0.5" opacity="0.2"/>
+                    <text x="100" y="95" text-anchor="middle" fill="#00d9ff"
+                          font-family="Orbitron" font-size="28" font-weight="700"
+                          letter-spacing="6">SONIC</text>
+                    <text x="100" y="120" text-anchor="middle" fill="#4a5568"
+                          font-family="Share Tech Mono" font-size="10"
+                          letter-spacing="4">AI INTERFACE v3.0</text>
+                </svg>
+            </div>
+            <div class="boot-progress">
+                <div class="boot-progress-bar" id="boot-progress-bar"></div>
+            </div>
+            <div class="boot-status" id="boot-status">INITIALIZING SYSTEMS...</div>
+        </div>
+    </div>
+
+    <div class="app-container" id="app-container">
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <div class="logo-mark">
+                    <svg viewBox="0 0 40 40" class="logo-svg">
+                        <polygon points="20,2 37,11 37,29 20,38 3,29 3,11"
+                                 fill="none" stroke="#00d9ff" stroke-width="1.5"/>
+                        <circle cx="20" cy="20" r="6" fill="none" stroke="#00d9ff" stroke-width="1"/>
+                        <circle cx="20" cy="20" r="2" fill="#00d9ff"/>
+                    </svg>
+                    <span class="logo-text">SONIC<span class="logo-ai">AI</span></span>
+                </div>
+                <div class="system-status">
+                    <span class="status-dot online"></span>
+                    <span class="status-label">SYSTEMS ONLINE</span>
+                </div>
+            </div>
+            <div class="top-bar-center">
+                <div class="datetime-display">
+                    <span class="time" id="live-time">00:00:00</span>
+                    <span class="date" id="live-date">—</span>
+                </div>
+            </div>
+            <div class="top-bar-right">
+                <div class="threat-level">
+                    <span class="threat-label">THREAT LVL</span>
+                    <span class="threat-value" id="threat-level">LOW</span>
+                </div>
+                <div class="security-indicator">
+                    <svg viewBox="0 0 24 24" width="18" height="18">
+                        <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z"
+                              fill="none" stroke="#3a9a6a" stroke-width="1.5"/>
+                    </svg>
+                    <span>SECURED</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="hud-corner tl"></div>
+        <div class="hud-corner tr"></div>
+        <div class="hud-corner bl"></div>
+        <div class="hud-corner br"></div>
+
+        <main class="main-grid">
+            <aside class="sidebar-left">
+                <nav class="nav-rings">
+                    <button class="nav-ring active" data-panel="dashboard" title="Dashboard">
+                        <svg viewBox="0 0 24 24" width="22" height="22">
+                            <rect x="3" y="3" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <rect x="14" y="3" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <rect x="3" y="14" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <rect x="14" y="14" width="7" height="7" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                        </svg>
+                    </button>
+                    <button class="nav-ring" data-panel="voice" title="Voice Interface">
+                        <svg viewBox="0 0 24 24" width="22" height="22">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <line x1="12" y1="19" x2="12" y2="23" stroke="currentColor" stroke-width="1.5"/>
+                            <line x1="8" y1="23" x2="16" y2="23" stroke="currentColor" stroke-width="1.5"/>
+                        </svg>
+                    </button>
+                    <button class="nav-ring" data-panel="analytics" title="Analytics">
+                        <svg viewBox="0 0 24 24" width="22" height="22">
+                            <path d="M18 20V10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                            <path d="M12 20V4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                            <path d="M6 20v-6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                        </svg>
+                    </button>
+                    <button class="nav-ring" data-panel="security" title="Security">
+                        <svg viewBox="0 0 24 24" width="22" height="22">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                        </svg>
+                    </button>
+                    <button class="nav-ring" data-panel="settings" title="Settings">
+                        <svg viewBox="0 0 24 24" width="22" height="22">
+                            <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                        </svg>
+                    </button>
+                </nav>
+                <div class="sidebar-uptime">
+                    <span class="uptime-label">UPTIME</span>
+                    <span class="uptime-value" id="uptime-value">00:00:00</span>
+                </div>
+            </aside>
+
+            <section class="panel-container">
+                <!-- DASHBOARD PANEL -->
+                <div class="panel active" id="panel-dashboard">
+                    <div class="panel-header">
+                        <div class="panel-title-group">
+                            <h2 class="panel-title">COMMAND CENTER</h2>
+                            <div class="panel-subtitle">Real-time system overview</div>
+                        </div>
+                        <div class="panel-actions">
+                            <button class="action-btn" id="btn-refresh" title="Refresh">
+                                <svg viewBox="0 0 24 24" width="16" height="16">
+                                    <polyline points="23 4 23 10 17 10" fill="none" stroke="currentColor" stroke-width="2"/>
+                                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" fill="none" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-grid">
+                        <div class="stat-card cpu-card">
+                            <div class="stat-ring-container">
+                                <svg class="stat-ring" viewBox="0 0 120 120">
+                                    <circle cx="60" cy="60" r="52" fill="none" stroke="#1e2530" stroke-width="6"/>
+                                    <circle cx="60" cy="60" r="52" fill="none" stroke="#00d9ff" stroke-width="6"
+                                            stroke-dasharray="326.7" stroke-dashoffset="245"
+                                            stroke-linecap="round" transform="rotate(-90 60 60)"
+                                            class="ring-progress" data-target="25"/>
+                                </svg>
+                                <div class="stat-ring-value">
+                                    <span class="stat-number" id="cpu-value">0</span>
+                                    <span class="stat-unit">%</span>
+                                </div>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">CPU USAGE</span>
+                                <span class="stat-detail" id="cpu-detail">Intel Core — 8 Cores</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card mem-card">
+                            <div class="stat-ring-container">
+                                <svg class="stat-ring" viewBox="0 0 120 120">
+                                    <circle cx="60" cy="60" r="52" fill="none" stroke="#1e2530" stroke-width="6"/>
+                                    <circle cx="60" cy="60" r="52" fill="none" stroke="#b87a3a" stroke-width="6"
+                                            stroke-dasharray="326.7" stroke-dashoffset="200"
+                                            stroke-linecap="round" transform="rotate(-90 60 60)"
+                                            class="ring-progress" data-target="39"/>
+                                </svg>
+                                <div class="stat-ring-value">
+                                    <span class="stat-number" id="mem-value">0</span>
+                                    <span class="stat-unit">%</span>
+                                </div>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">MEMORY</span>
+                                <span class="stat-detail" id="mem-detail">0 / 0 GB</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card disk-card">
+                            <div class="stat-ring-container">
+                                <svg class="stat-ring" viewBox="0 0 120 120">
+                                    <circle cx="60" cy="60" r="52" fill="none" stroke="#1e2530" stroke-width="6"/>
+                                    <circle cx="60" cy="60" r="52" fill="none" stroke="#3a9a6a" stroke-width="6"
+                                            stroke-dasharray="326.7" stroke-dashoffset="163"
+                                            stroke-linecap="round" transform="rotate(-90 60 60)"
+                                            class="ring-progress" data-target="50"/>
+                                </svg>
+                                <div class="stat-ring-value">
+                                    <span class="stat-number" id="disk-value">0</span>
+                                    <span class="stat-unit">%</span>
+                                </div>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">DISK</span>
+                                <span class="stat-detail" id="disk-detail">0 / 0 GB</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card net-card">
+                            <div class="stat-ring-container">
+                                <div class="waveform-container">
+                                    <canvas id="waveform-canvas" width="120" height="120"></canvas>
+                                </div>
+                                <div class="stat-ring-value">
+                                    <span class="stat-number" id="net-value">0</span>
+                                    <span class="stat-unit">KB/s</span>
+                                </div>
+                            </div>
+                            <div class="stat-info">
+                                <span class="stat-label">NETWORK</span>
+                                <span class="stat-detail" id="net-detail">↑ 0 KB/s ↓ 0 KB/s</span>
+                            </div>
+                        </div>
+
+                        <div class="activity-card">
+                            <div class="card-header">
+                                <h3 class="card-title">ACTIVITY LOG</h3>
+                                <span class="card-badge">LIVE</span>
+                            </div>
+                            <div class="activity-feed" id="activity-feed">
+                                <div class="activity-item">
+                                    <span class="activity-time">00:00</span>
+                                    <span class="activity-dot online"></span>
+                                    <span class="activity-text">System initialized</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tasks-card">
+                            <div class="card-header">
+                                <h3 class="card-title">ACTIVE TASKS</h3>
+                                <span class="card-count" id="task-count">0</span>
+                            </div>
+                            <div class="task-list" id="task-list">
+                                <div class="task-item">
+                                    <div class="task-icon running">
+                                        <svg viewBox="0 0 24 24" width="14" height="14">
+                                            <polygon points="5,3 19,12 5,21" fill="currentColor"/>
+                                        </svg>
+                                    </div>
+                                    <div class="task-info">
+                                        <span class="task-name">Behavior Analytics</span>
+                                        <span class="task-status">Monitoring</span>
+                                    </div>
+                                    <div class="task-progress">
+                                        <div class="task-bar" style="width: 85%"></div>
+                                    </div>
+                                </div>
+                                <div class="task-item">
+                                    <div class="task-icon running">
+                                        <svg viewBox="0 0 24 24" width="14" height="14">
+                                            <polygon points="5,3 19,12 5,21" fill="currentColor"/>
+                                        </svg>
+                                    </div>
+                                    <div class="task-info">
+                                        <span class="task-name">Security Monitor</span>
+                                        <span class="task-status">Scanning</span>
+                                    </div>
+                                    <div class="task-progress">
+                                        <div class="task-bar" style="width: 62%"></div>
+                                    </div>
+                                </div>
+                                <div class="task-item">
+                                    <div class="task-icon idle">
+                                        <svg viewBox="0 0 24 24" width="14" height="14">
+                                            <circle cx="12" cy="12" r="5" fill="currentColor"/>
+                                        </svg>
+                                    </div>
+                                    <div class="task-info">
+                                        <span class="task-name">Emotion Engine</span>
+                                        <span class="task-status">Standby</span>
+                                    </div>
+                                    <div class="task-progress">
+                                        <div class="task-bar" style="width: 0%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="weather-card">
+                            <div class="card-header">
+                                <h3 class="card-title">ENVIRONMENT</h3>
+                            </div>
+                            <div class="weather-data">
+                                <div class="weather-main">
+                                    <span class="weather-temp" id="weather-temp">--°C</span>
+                                    <span class="weather-condition" id="weather-condition">Detecting...</span>
+                                </div>
+                                <div class="weather-grid">
+                                    <div class="weather-item">
+                                        <span class="weather-item-label">CPU Temp</span>
+                                        <span class="weather-item-value" id="cpu-temp">--°C</span>
+                                    </div>
+                                    <div class="weather-item">
+                                        <span class="weather-item-label">Fan Speed</span>
+                                        <span class="weather-item-value" id="fan-speed">-- RPM</span>
+                                    </div>
+                                    <div class="weather-item">
+                                        <span class="weather-item-label">Load Avg</span>
+                                        <span class="weather-item-value" id="load-avg">--</span>
+                                    </div>
+                                    <div class="weather-item">
+                                        <span class="weather-item-label">Processes</span>
+                                        <span class="weather-item-value" id="proc-count">--</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VOICE PANEL -->
+                <div class="panel" id="panel-voice">
+                    <div class="panel-header">
+                        <div class="panel-title-group">
+                            <h2 class="panel-title">VOICE INTERFACE</h2>
+                            <div class="panel-subtitle">Natural language command processor</div>
+                        </div>
+                    </div>
+                    <div class="voice-container">
+                        <div class="voice-visualizer">
+                            <div class="voice-ring r1"></div>
+                            <div class="voice-ring r2"></div>
+                            <div class="voice-ring r3"></div>
+                            <div class="voice-core" id="voice-core">
+                                <svg viewBox="0 0 24 24" width="40" height="40">
+                                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" fill="none" stroke="#00d9ff" stroke-width="1.5"/>
+                                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" fill="none" stroke="#00d9ff" stroke-width="1.5"/>
+                                    <line x1="12" y1="19" x2="12" y2="23" stroke="#00d9ff" stroke-width="1.5"/>
+                                    <line x1="8" y1="23" x2="16" y2="23" stroke="#00d9ff" stroke-width="1.5"/>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="voice-status" id="voice-status">STANDBY</div>
+                        <div class="voice-transcript" id="voice-transcript">
+                            Say "Hey Sonic" to activate...
+                        </div>
+                        <div class="voice-input-row">
+                            <input type="text" class="voice-text-input" id="voice-text-input"
+                                   placeholder="Type a command..." autocomplete="off">
+                            <button class="voice-send-btn" id="voice-send-btn">
+                                <svg viewBox="0 0 24 24" width="18" height="18">
+                                    <line x1="22" y1="2" x2="11" y2="13" stroke="currentColor" stroke-width="2"/>
+                                    <polygon points="22 2 15 22 11 13 2 9 22 2" fill="none" stroke="currentColor" stroke-width="2"/>
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="voice-history" id="voice-history"></div>
+                    </div>
+                </div>
+
+                <!-- ANALYTICS PANEL -->
+                <div class="panel" id="panel-analytics">
+                    <div class="panel-header">
+                        <div class="panel-title-group">
+                            <h2 class="panel-title">BEHAVIOR ANALYTICS</h2>
+                            <div class="panel-subtitle">Intelligence & productivity analysis</div>
+                        </div>
+                    </div>
+                    <div class="analytics-grid">
+                        <div class="analytics-score-card">
+                            <div class="score-ring">
+                                <svg viewBox="0 0 160 160">
+                                    <circle cx="80" cy="80" r="70" fill="none" stroke="#1e2530" stroke-width="8"/>
+                                    <circle cx="80" cy="80" r="70" fill="none" stroke="#00d9ff" stroke-width="8"
+                                            stroke-dasharray="439.8" stroke-dashoffset="100"
+                                            stroke-linecap="round" transform="rotate(-90 80 80)"
+                                            class="score-ring-progress"/>
+                                </svg>
+                                <div class="score-value">
+                                    <span class="score-number" id="productivity-score">0</span>
+                                    <span class="score-label">PRODUCTIVITY</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="analytics-bars">
+                            <h3 class="analytics-section-title">WEEKLY BREAKDOWN</h3>
+                            <div class="bar-chart" id="weekly-chart">
+                                <div class="bar-day"><div class="bar-fill" style="height:65%" data-day="MON"></div><span class="bar-label">M</span></div>
+                                <div class="bar-day"><div class="bar-fill" style="height:80%" data-day="TUE"></div><span class="bar-label">T</span></div>
+                                <div class="bar-day"><div class="bar-fill" style="height:45%" data-day="WED"></div><span class="bar-label">W</span></div>
+                                <div class="bar-day"><div class="bar-fill" style="height:90%" data-day="THU"></div><span class="bar-label">T</span></div>
+                                <div class="bar-day"><div class="bar-fill" style="height:70%" data-day="FRI"></div><span class="bar-label">F</span></div>
+                                <div class="bar-day"><div class="bar-fill" style="height:30%" data-day="SAT"></div><span class="bar-label">S</span></div>
+                                <div class="bar-day"><div class="bar-fill" style="height:20%" data-day="SUN"></div><span class="bar-label">S</span></div>
+                            </div>
+                        </div>
+                        <div class="analytics-insights">
+                            <h3 class="analytics-section-title">AI INSIGHTS</h3>
+                            <div class="insight-list">
+                                <div class="insight-item">
+                                    <div class="insight-icon positive">
+                                        <svg viewBox="0 0 24 24" width="16" height="16"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                                    </div>
+                                    <div class="insight-text">
+                                        <span class="insight-msg">Peak productivity detected between 10:00-14:00</span>
+                                        <span class="insight-meta">Based on 14 days of data</span>
+                                    </div>
+                                </div>
+                                <div class="insight-item">
+                                    <div class="insight-icon neutral">
+                                        <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><line x1="12" y1="8" x2="12" y2="12" stroke="currentColor" stroke-width="2"/><line x1="12" y1="16" x2="12.01" y2="16" stroke="currentColor" stroke-width="2"/></svg>
+                                    </div>
+                                    <div class="insight-text">
+                                        <span class="insight-msg">Consider taking breaks every 90 minutes</span>
+                                        <span class="insight-meta">Ergonomic recommendation</span>
+                                    </div>
+                                </div>
+                                <div class="insight-item">
+                                    <div class="insight-icon positive">
+                                        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" fill="none" stroke="currentColor" stroke-width="2"/><polyline points="22 4 12 14.01 9 11.01" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                                    </div>
+                                    <div class="insight-text">
+                                        <span class="insight-msg">Coding sessions up 23% this week</span>
+                                        <span class="insight-meta">Positive trend detected</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECURITY PANEL -->
+                <div class="panel" id="panel-security">
+                    <div class="panel-header">
+                        <div class="panel-title-group">
+                            <h2 class="panel-title">SECURITY CENTER</h2>
+                            <div class="panel-subtitle">Threat detection & sandbox monitoring</div>
+                        </div>
+                    </div>
+                    <div class="security-grid">
+                        <div class="security-overview">
+                            <div class="sec-stat">
+                                <div class="sec-stat-icon green">
+                                    <svg viewBox="0 0 24 24" width="24" height="24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                                </div>
+                                <div class="sec-stat-info">
+                                    <span class="sec-stat-value" id="sec-threats">0</span>
+                                    <span class="sec-stat-label">Threats Blocked</span>
+                                </div>
+                            </div>
+                            <div class="sec-stat">
+                                <div class="sec-stat-icon cyan">
+                                    <svg viewBox="0 0 24 24" width="24" height="24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M7 11V7a5 5 0 0 1 10 0v4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                                </div>
+                                <div class="sec-stat-info">
+                                    <span class="sec-stat-value" id="sec-scans">127</span>
+                                    <span class="sec-stat-label">Scans Performed</span>
+                                </div>
+                            </div>
+                            <div class="sec-stat">
+                                <div class="sec-stat-icon amber">
+                                    <svg viewBox="0 0 24 24" width="24" height="24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="12" y1="9" x2="12" y2="13" stroke="currentColor" stroke-width="1.5"/><line x1="12" y1="17" x2="12.01" y2="17" stroke="currentColor" stroke-width="1.5"/></svg>
+                                </div>
+                                <div class="sec-stat-info">
+                                    <span class="sec-stat-value" id="sec-warnings">3</span>
+                                    <span class="sec-stat-label">Warnings</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="security-log">
+                            <div class="card-header">
+                                <h3 class="card-title">SANDBOX LOG</h3>
+                            </div>
+                            <div class="sandbox-log" id="sandbox-log">
+                                <div class="log-entry safe">
+                                    <span class="log-time">00:00</span>
+                                    <span class="log-level">SAFE</span>
+                                    <span class="log-msg">Sandbox initialized — all patterns loaded</span>
+                                </div>
+                                <div class="log-entry safe">
+                                    <span class="log-time">00:01</span>
+                                    <span class="log-level">SAFE</span>
+                                    <span class="log-msg">behavior_analytics.py — passed scan</span>
+                                </div>
+                                <div class="log-entry warning">
+                                    <span class="log-time">00:02</span>
+                                    <span class="log-level">WARN</span>
+                                    <span class="log-msg">youtube_video.py — subprocess usage detected</span>
+                                </div>
+                                <div class="log-entry safe">
+                                    <span class="log-time">00:02</span>
+                                    <span class="log-level">SAFE</span>
+                                    <span class="log-msg">weather_report.py — webbrowser module OK</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="threat-map">
+                            <div class="card-header">
+                                <h3 class="card-title">NETWORK MAP</h3>
+                            </div>
+                            <canvas id="network-canvas" width="400" height="250"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SETTINGS PANEL -->
+                <div class="panel" id="panel-settings">
+                    <div class="panel-header">
+                        <div class="panel-title-group">
+                            <h2 class="panel-title">SYSTEM CONFIGURATION</h2>
+                            <div class="panel-subtitle">Interface & behavior settings</div>
+                        </div>
+                    </div>
+                    <div class="settings-grid">
+                        <div class="settings-section">
+                            <h3 class="settings-section-title">THEME</h3>
+                            <div class="theme-options">
+                                <button class="theme-btn active" data-theme="cyan" title="Obsidian Cyan">
+                                    <span class="theme-swatch" style="background:#00d9ff"></span>
+                                    <span class="theme-name">Obsidian Cyan</span>
+                                </button>
+                                <button class="theme-btn" data-theme="gold" title="Sci-Fi Gold">
+                                    <span class="theme-swatch" style="background:#ffd700"></span>
+                                    <span class="theme-name">Sci-Fi Gold</span>
+                                </button>
+                                <button class="theme-btn" data-theme="emerald" title="Neon Emerald">
+                                    <span class="theme-swatch" style="background:#00ff88"></span>
+                                    <span class="theme-name">Neon Emerald</span>
+                                </button>
+                                <button class="theme-btn" data-theme="crimson" title="Blood Crimson">
+                                    <span class="theme-swatch" style="background:#ff3355"></span>
+                                    <span class="theme-name">Blood Crimson</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="settings-section">
+                            <h3 class="settings-section-title">PARTICLES</h3>
+                            <div class="setting-row">
+                                <span class="setting-label">Background Particles</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="toggle-particles" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">Particle Density</span>
+                                <input type="range" class="setting-range" id="particle-density" min="20" max="200" value="80">
+                            </div>
+                        </div>
+                        <div class="settings-section">
+                            <h3 class="settings-section-title">ANIMATIONS</h3>
+                            <div class="setting-row">
+                                <span class="setting-label">Scanline Effect</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="toggle-scanline" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">HUD Corner Frames</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="toggle-hud-corners" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="settings-section">
+                            <h3 class="settings-section-title">VOICE</h3>
+                            <div class="setting-row">
+                                <span class="setting-label">Wake Word</span>
+                                <input type="text" class="setting-text" id="wake-word" value="Hey Sonic" placeholder="Wake word...">
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">Voice Response</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="toggle-voice-response" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="settings-section">
+                            <h3 class="settings-section-title">SYSTEM</h3>
+                            <div class="setting-row">
+                                <span class="setting-label">Boot Animation</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="toggle-boot" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <div class="setting-row">
+                                <span class="setting-label">Activity Logging</span>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="toggle-logging" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <button class="settings-reset-btn" id="btn-reset">RESET TO DEFAULTS</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <aside class="sidebar-right">
+                <div class="mini-stat">
+                    <span class="mini-label">GPU</span>
+                    <div class="mini-bar"><div class="mini-fill gpu-fill" id="gpu-bar" style="width:15%"></div></div>
+                    <span class="mini-value" id="gpu-value">15%</span>
+                </div>
+                <div class="mini-stat">
+                    <span class="mini-label">NET</span>
+                    <div class="mini-bar"><div class="mini-fill net-fill" id="net-bar" style="width:32%"></div></div>
+                    <span class="mini-value" id="net-mini-value">32 KB/s</span>
+                </div>
+                <div class="mini-stat">
+                    <span class="mini-label">I/O</span>
+                    <div class="mini-bar"><div class="mini-fill io-fill" id="io-bar" style="width:8%"></div></div>
+                    <span class="mini-value" id="io-value">8%</span>
+                </div>
+                <div class="sidebar-divider"></div>
+                <div class="sidebar-clock">
+                    <span class="sidebar-clock-label">LOCAL TIME</span>
+                    <span class="sidebar-clock-value" id="sidebar-time">00:00</span>
+                </div>
+                <div class="sidebar-divider"></div>
+                <div class="sidebar-quick-actions">
+                    <button class="quick-btn" id="btn-screenshot" title="Capture Screenshot">
+                        <svg viewBox="0 0 24 24" width="16" height="16"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="13" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                    </button>
+                    <button class="quick-btn" id="btn-clear-log" title="Clear Activity Log">
+                        <svg viewBox="0 0 24 24" width="16" height="16"><polyline points="3 6 5 6 21 6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                    </button>
+                    <button class="quick-btn" id="btn-fullscreen" title="Fullscreen">
+                        <svg viewBox="0 0 24 24" width="16" height="16"><polyline points="15 3 21 3 21 9" fill="none" stroke="currentColor" stroke-width="1.5"/><polyline points="9 21 3 21 3 15" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="21" y1="3" x2="14" y2="10" stroke="currentColor" stroke-width="1.5"/><line x1="3" y1="21" x2="10" y2="14" stroke="currentColor" stroke-width="1.5"/></svg>
+                    </button>
+                </div>
+            </aside>
+        </main>
+
+        <footer class="bottom-bar">
+            <div class="bottom-left">
+                <span class="build-info">SONIC AI v3.0.0 — Build 20260922</span>
+            </div>
+            <div class="bottom-center">
+                <div class="command-input-wrapper">
+                    <span class="command-prefix">&gt;_</span>
+                    <input type="text" class="command-input" id="command-input"
+                           placeholder="Enter command..." autocomplete="off">
+                    <button class="command-execute" id="command-execute">EXEC</button>
+                </div>
+            </div>
+            <div class="bottom-right">
+                <span class="conn-status">
+                    <span class="status-dot online"></span>
+                    CONNECTED
+                </span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="sonic-dashboard.js"></script>
+</body>
+</html>

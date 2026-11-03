@@ -19,8 +19,18 @@ else:
     _WIN_HIDE: dict = {}
 
 # ── Import SONIC theme from sonic-frontend-theme ──────────────────────────────
-_SONIC_THEME_DIR = str(Path(__file__).resolve().parent / "sonic-frontend-theme")
-if _SONIC_THEME_DIR not in sys.path:
+# Resolve the theme directory robustly: this file may live at <project>/ui/sonic_ui.py
+# (current layout) or <project>/ui.py (legacy layout). Pick whichever exists.
+_THEME_CANDIDATES = [
+    Path(__file__).resolve().parent.parent / "sonic-frontend-theme",
+    Path(__file__).resolve().parent / "sonic-frontend-theme",
+]
+_SONIC_THEME_DIR: str | None = None
+for _candidate in _THEME_CANDIDATES:
+    if _candidate.exists():
+        _SONIC_THEME_DIR = str(_candidate)
+        break
+if _SONIC_THEME_DIR and _SONIC_THEME_DIR not in sys.path:
     sys.path.insert(0, _SONIC_THEME_DIR)
 
 from pyqt6_theme import (
@@ -46,9 +56,21 @@ from PyQt6.QtWidgets import (
 )
 
 def _base_dir() -> Path:
+    """Resolve the project root robustly across layouts.
+
+    - When frozen (PyInstaller), the executable's parent is the project root.
+    - Otherwise, this file lives at ``<project>/ui/sonic_ui.py`` — the
+      project root is ``parent.parent``. We still accept the legacy flat
+      layout (``<project>/ui.py``) as a fallback so old checkouts work.
+    """
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
-    return Path(__file__).resolve().parent
+    here = Path(__file__).resolve().parent
+    # Prefer the project root (one level up from ui/) — this matches the
+    # current layout. Fall back to the directory of this file (legacy).
+    if (here.parent / "config").exists():
+        return here.parent
+    return here
 
 BASE_DIR   = _base_dir()
 CONFIG_DIR = BASE_DIR / "config"
@@ -629,6 +651,13 @@ class SetupOverlay(QWidget):
                 border-radius: 6px;
             }}
         """)
+        # Subtle Apple-style drop shadow on the overlay body
+        from PyQt6.QtWidgets import QGraphicsDropShadowEffect
+        body_shadow = QGraphicsDropShadowEffect(self)
+        body_shadow.setBlurRadius(28)
+        body_shadow.setColor(QColor(0, 0, 0, 180))
+        body_shadow.setOffset(0, 6)
+        self.setGraphicsEffect(body_shadow)
 
         detected = {"darwin": "mac", "windows": "windows"}.get(
             _OS.lower(), "linux"
@@ -636,44 +665,47 @@ class SetupOverlay(QWidget):
         self._sel_os = detected
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(30, 22, 30, 22)
-        layout.setSpacing(8)
+        layout.setContentsMargins(32, 26, 32, 26)
+        layout.setSpacing(10)
 
-        def _lbl(txt, font_size=9, bold=False, color=C.PRI,
-                 align=Qt.AlignmentFlag.AlignCenter):
+        def _lbl(txt, font_size=10, bold=False, color=C.PRI,
+                 align=Qt.AlignmentFlag.AlignCenter, letter_spacing=0):
             w = QLabel(txt)
             w.setAlignment(align)
             w.setFont(QFont("Courier New", font_size,
                             QFont.Weight.Bold if bold else QFont.Weight.Normal))
-            w.setStyleSheet(f"color: {color}; background: transparent;")
+            style = f"color: {color}; background: transparent;"
+            if letter_spacing:
+                style += f" letter-spacing: {letter_spacing}px;"
+            w.setStyleSheet(style)
             return w
 
-        layout.addWidget(_lbl("◈  INITIALISATION REQUIRED", 13, True))
-        layout.addWidget(_lbl("Configure S.O.N.I.C. before first boot.", 9, color=C.PRI_DIM))
-        layout.addSpacing(6)
+        layout.addWidget(_lbl("◈  INITIALISATION REQUIRED", 14, True, letter_spacing=1.2))
+        layout.addWidget(_lbl("Configure S.O.N.I.C. before first boot.", 10, color=C.PRI_DIM))
+        layout.addSpacing(8)
 
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet(f"color: {C.BORDER};"); layout.addWidget(sep)
-        layout.addSpacing(4)
+        layout.addSpacing(6)
 
-        layout.addWidget(_lbl("GEMINI API KEY", 8, color=C.TEXT_DIM,
+        layout.addWidget(_lbl("GEMINI API KEY", 9, color=C.TEXT_DIM, letter_spacing=0.8,
                                align=Qt.AlignmentFlag.AlignLeft))
         self._key_input = HudLineEdit()
         self._key_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._key_input.setPlaceholderText("AIza…")
         self._key_input.setFont(QFont("Courier New", 10))
-        self._key_input.setFixedHeight(32)
+        self._key_input.setFixedHeight(34)
         layout.addWidget(self._key_input)
-        layout.addSpacing(12)
+        layout.addSpacing(14)
 
         sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
         sep2.setStyleSheet(f"color: {C.BORDER};"); layout.addWidget(sep2)
-        layout.addSpacing(4)
+        layout.addSpacing(6)
 
-        layout.addWidget(_lbl("OPERATING SYSTEM", 8, color=C.TEXT_DIM,
+        layout.addWidget(_lbl("OPERATING SYSTEM", 9, color=C.TEXT_DIM, letter_spacing=0.8,
                                align=Qt.AlignmentFlag.AlignLeft))
         det_name = {"windows": "Windows", "mac": "macOS", "linux": "Linux"}[detected]
-        layout.addWidget(_lbl(f"Auto-detected: {det_name}", 8, color=C.ACC2,
+        layout.addWidget(_lbl(f"Auto-detected: {det_name}", 9, color=C.ACC2,
                                align=Qt.AlignmentFlag.AlignLeft))
 
         os_row = QHBoxLayout(); os_row.setSpacing(6)
@@ -682,18 +714,18 @@ class SetupOverlay(QWidget):
             btn = HudButton(label,
                             cuts=[("tl", 5), ("tr", 5), ("bl", 5), ("br", 5)],
                             border=HU.BORDER, fill=HU.FILL, color=HU.DIM, font_size=9)
-            btn.setFixedHeight(32)
+            btn.setFixedHeight(34)
             btn.clicked.connect(lambda _, k=key: self._sel(k))
             os_row.addWidget(btn)
             self._os_btns[key] = btn
         layout.addLayout(os_row)
         self._sel(detected)
-        layout.addSpacing(12)
+        layout.addSpacing(14)
 
         init_btn = HudButton("▸  INITIALISE SYSTEMS",
                               cuts=[("tl", 6), ("tr", 6), ("bl", 6), ("br", 6)],
                               border=HU.BRIGHT, fill=HU.FILL2, color=HU.BRIGHT, font_size=10)
-        init_btn.setFixedHeight(36)
+        init_btn.setFixedHeight(40)
         init_btn.clicked.connect(self._submit)
         layout.addWidget(init_btn)
 
@@ -733,97 +765,109 @@ class AuthOverlay(QWidget):
                 border-radius: 8px;
             }}
         """)
+        # Subtle Apple-style drop shadow on the overlay body
+        from PyQt6.QtWidgets import QGraphicsDropShadowEffect
+        body_shadow = QGraphicsDropShadowEffect(self)
+        body_shadow.setBlurRadius(32)
+        body_shadow.setColor(QColor(0, 0, 0, 180))
+        body_shadow.setOffset(0, 8)
+        self.setGraphicsEffect(body_shadow)
+
         self._mode = "login"  # login | signup | forgot | verify
         self._error_timer = QTimer(self)
         self._error_timer.setSingleShot(True)
         self._error_timer.timeout.connect(lambda: self._error_lbl.setText(""))
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(32, 28, 32, 28)
-        layout.setSpacing(5)
+        layout.setContentsMargins(36, 32, 36, 32)
+        layout.setSpacing(6)
 
-        def _lbl(txt, font_size=9, bold=False, color=C.PRI,
-                 align=Qt.AlignmentFlag.AlignCenter):
+        def _lbl(txt, font_size=10, bold=False, color=C.PRI,
+                 align=Qt.AlignmentFlag.AlignCenter, letter_spacing=0):
             w = QLabel(txt)
             w.setAlignment(align)
             w.setFont(QFont("Courier New", font_size,
                             QFont.Weight.Bold if bold else QFont.Weight.Normal))
-            w.setStyleSheet(f"color: {color}; background: transparent;")
+            style = f"color: {color}; background: transparent;"
+            if letter_spacing:
+                style += f" letter-spacing: {letter_spacing}px;"
+            w.setStyleSheet(style)
             return w
 
         # ── Logo / Brand ───────────────────────────────────────────
-        logo_lbl = _lbl("◈", 22, True, C.PRI)
-        logo_lbl.setStyleSheet(f"color: {C.PRI}; background: transparent; font-size: 22px;")
+        logo_lbl = _lbl("◈", 26, True, C.PRI)
+        logo_lbl.setStyleSheet(f"color: {C.PRI}; background: transparent; font-size: 26px;")
         layout.addWidget(logo_lbl)
-        layout.addSpacing(2)
+        layout.addSpacing(4)
 
-        self._title_lbl = _lbl("SIGN IN TO SONIC", 14, True)
+        self._title_lbl = _lbl("SIGN IN TO SONIC", 15, True, letter_spacing=1.2)
         layout.addWidget(self._title_lbl)
-        self._subtitle_lbl = _lbl("Access your AI from any device.", 9, color=C.PRI_DIM)
+        self._subtitle_lbl = _lbl("Access your AI from any device.", 10, color=C.PRI_DIM)
         layout.addWidget(self._subtitle_lbl)
-        layout.addSpacing(6)
+        layout.addSpacing(8)
 
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet(f"color: {C.BORDER}; max-height: 1px;"); layout.addWidget(sep)
-        layout.addSpacing(6)
+        layout.addSpacing(8)
 
         # Email
-        layout.addWidget(_lbl("EMAIL", 8, color=C.TEXT_DIM,
+        layout.addWidget(_lbl("EMAIL", 9, color=C.TEXT_DIM, letter_spacing=0.8,
                                align=Qt.AlignmentFlag.AlignLeft))
         self._email_input = HudLineEdit()
         self._email_input.setPlaceholderText("you@example.com")
         self._email_input.setFont(QFont("Courier New", 10))
-        self._email_input.setFixedHeight(32)
+        self._email_input.setFixedHeight(34)
         layout.addWidget(self._email_input)
-        layout.addSpacing(6)
+        layout.addSpacing(8)
 
         # Password
-        layout.addWidget(_lbl("PASSWORD", 8, color=C.TEXT_DIM,
+        layout.addWidget(_lbl("PASSWORD", 9, color=C.TEXT_DIM, letter_spacing=0.8,
                                align=Qt.AlignmentFlag.AlignLeft))
         self._pass_input = HudLineEdit()
         self._pass_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._pass_input.setPlaceholderText("••••••••")
         self._pass_input.setFont(QFont("Courier New", 10))
-        self._pass_input.setFixedHeight(32)
+        self._pass_input.setFixedHeight(34)
         layout.addWidget(self._pass_input)
-        pw_hint = _lbl("6+ characters", 7, color=C.TEXT_DIM)
+        pw_hint = _lbl("6+ characters", 8, color=C.TEXT_DIM)
         layout.addWidget(pw_hint)
-        layout.addSpacing(6)
+        layout.addSpacing(8)
 
         # Confirm password (signup only)
         self._confirm_row = QWidget()
         confirm_layout = QVBoxLayout(self._confirm_row)
         confirm_layout.setContentsMargins(0, 0, 0, 0)
         confirm_layout.setSpacing(4)
-        confirm_layout.addWidget(_lbl("CONFIRM PASSWORD", 8, color=C.TEXT_DIM,
+        confirm_layout.addWidget(_lbl("CONFIRM PASSWORD", 9, color=C.TEXT_DIM, letter_spacing=0.8,
                                        align=Qt.AlignmentFlag.AlignLeft))
         self._confirm_input = HudLineEdit()
         self._confirm_input.setEchoMode(QLineEdit.EchoMode.Password)
         self._confirm_input.setPlaceholderText("••••••••")
         self._confirm_input.setFont(QFont("Courier New", 10))
-        self._confirm_input.setFixedHeight(32)
+        self._confirm_input.setFixedHeight(34)
         confirm_layout.addWidget(self._confirm_input)
         self._confirm_row.setVisible(False)
         layout.addWidget(self._confirm_row)
 
-        # Error label
-        self._error_lbl = _lbl("", 8, color=C.RED)
+        # Error label — Apple-style error chip
+        self._error_lbl = _lbl("", 9, color=C.RED)
         self._error_lbl.setStyleSheet(f"""
             color: {C.RED};
             background: {C.RED_DIM};
             border: 1px solid {C.RED};
-            border-radius: 4px;
-            padding: 6px 10px;
-            min-height: 14px;
+            border-radius: {getattr(C, 'R_MD', 6)}px;
+            padding: 8px 12px;
+            min-height: 16px;
         """)
+        self._error_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._error_lbl)
-        layout.addSpacing(4)
+        layout.addSpacing(6)
 
         # Primary action button
         self._action_btn = HudButton("▸  SIGN IN",
                                       cuts=[("tl", 6), ("tr", 6), ("bl", 6), ("br", 6)],
                                       border=HU.BRIGHT, fill=HU.FILL2, color=HU.BRIGHT, font_size=10)
-        self._action_btn.setFixedHeight(36)
+        self._action_btn.setFixedHeight(40)
         self._action_btn.clicked.connect(self._on_action)
         layout.addWidget(self._action_btn)
 
@@ -835,7 +879,7 @@ class AuthOverlay(QWidget):
         self._switch_btn.setStyleSheet(f"""
             QPushButton {{
                 color: {C.PRI_DIM}; background: transparent; border: none;
-                font-size: 9px; text-decoration: none;
+                font-size: 10px; text-decoration: none;
             }}
             QPushButton:hover {{
                 color: {C.PRI}; text-decoration: underline;
@@ -849,7 +893,7 @@ class AuthOverlay(QWidget):
         self._forgot_btn.setStyleSheet(f"""
             QPushButton {{
                 color: {C.TEXT_DIM}; background: transparent; border: none;
-                font-size: 9px; text-decoration: none;
+                font-size: 10px; text-decoration: none;
             }}
             QPushButton:hover {{
                 color: {C.PRI}; text-decoration: underline;
@@ -865,7 +909,7 @@ class AuthOverlay(QWidget):
         self._skip_btn.setStyleSheet(f"""
             QPushButton {{
                 color: {C.TEXT_DIM}; background: transparent; border: none;
-                font-size: 8px; text-decoration: none;
+                font-size: 9px; text-decoration: none;
             }}
             QPushButton:hover {{
                 color: {C.TEXT_MED}; text-decoration: underline;
@@ -878,12 +922,12 @@ class AuthOverlay(QWidget):
         sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
         sep2.setStyleSheet(f"color: {C.BORDER_DIM}; max-height: 1px;")
         layout.addWidget(sep2)
-        layout.addSpacing(2)
+        layout.addSpacing(4)
 
         # Google Sign-In
         self._google_btn = QPushButton("▸  Continue with Google")
         self._google_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._google_btn.setFixedHeight(34)
+        self._google_btn.setFixedHeight(36)
         from auth import get_auth
         google_enabled = get_auth().is_google_configured()
         self._google_btn.setEnabled(google_enabled)
@@ -892,7 +936,7 @@ class AuthOverlay(QWidget):
         self._google_btn.setStyleSheet(f"""
             QPushButton {{
                 color: {C.TEXT}; background: {HU.FILL2}; border: 1px solid {C.BORDER};
-                border-radius: 5px; font-size: 9px; padding: 6px 12px;
+                border-radius: {getattr(C, 'R_MD', 6)}px; font-size: 10px; padding: 8px 14px;
             }}
             QPushButton:hover {{
                 border: 1px solid {C.PRI}; color: {C.PRI};
@@ -910,7 +954,7 @@ class AuthOverlay(QWidget):
         layout.addWidget(self._google_btn)
 
         # Loading overlay
-        self._loading_lbl = _lbl("Connecting...", 9, color=C.PRI)
+        self._loading_lbl = _lbl("Connecting...", 10, color=C.PRI)
         self._loading_lbl.setStyleSheet(f"color: {C.PRI}; background: transparent; font-style: italic;")
         self._loading_lbl.setVisible(False)
         layout.addWidget(self._loading_lbl)
@@ -1866,50 +1910,60 @@ class CustomizeOverlay(QWidget):
                 border-radius: 6px;
             }}
         """)
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(24, 18, 24, 18)
-        lay.setSpacing(8)
+        from PyQt6.QtWidgets import QGraphicsDropShadowEffect
+        body_shadow = QGraphicsDropShadowEffect(self)
+        body_shadow.setBlurRadius(28)
+        body_shadow.setColor(QColor(0, 0, 0, 180))
+        body_shadow.setOffset(0, 6)
+        self.setGraphicsEffect(body_shadow)
 
-        def _lbl(txt, fs=9, bold=False, color=C.PRI, align=Qt.AlignmentFlag.AlignCenter):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(28, 22, 28, 22)
+        lay.setSpacing(10)
+
+        def _lbl(txt, fs=10, bold=False, color=C.PRI, align=Qt.AlignmentFlag.AlignCenter, letter_spacing=0):
             w = QLabel(txt); w.setAlignment(align)
             w.setFont(QFont("Courier New", fs,
                             QFont.Weight.Bold if bold else QFont.Weight.Normal))
-            w.setStyleSheet(f"color: {color}; background: transparent;")
+            style = f"color: {color}; background: transparent;"
+            if letter_spacing:
+                style += f" letter-spacing: {letter_spacing}px;"
+            w.setStyleSheet(style)
             return w
 
-        lay.addWidget(_lbl("⚙  CUSTOMISE ASSISTANT", 12, True))
+        lay.addWidget(_lbl("⚙  CUSTOMISE ASSISTANT", 14, True, letter_spacing=1.0))
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet(f"color: {C.BORDER}; margin: 2px 0;")
         lay.addWidget(sep)
 
-        lay.addWidget(_lbl("ASSISTANT NAME", 8, color=C.TEXT_DIM,
+        lay.addWidget(_lbl("ASSISTANT NAME", 9, color=C.TEXT_DIM, letter_spacing=0.7,
                             align=Qt.AlignmentFlag.AlignLeft))
         self._name_input = HudLineEdit()
         self._name_input.setText(assistant_name)
         self._name_input.setFont(QFont("Courier New", 10))
-        self._name_input.setFixedHeight(32)
+        self._name_input.setFixedHeight(34)
         lay.addWidget(self._name_input)
 
-        lay.addSpacing(4)
-        lay.addWidget(_lbl("YOUR NAME  (leave blank for default sir / efendim)", 8,
-                            color=C.TEXT_DIM, align=Qt.AlignmentFlag.AlignLeft))
+        lay.addSpacing(6)
+        lay.addWidget(_lbl("YOUR NAME  (leave blank for default sir / efendim)", 9,
+                            color=C.TEXT_DIM, letter_spacing=0.7, align=Qt.AlignmentFlag.AlignLeft))
         self._user_input = HudLineEdit()
         self._user_input.setText(user_name)
         self._user_input.setPlaceholderText("e.g.  Tony   (leave blank for auto)")
         self._user_input.setFont(QFont("Courier New", 10))
-        self._user_input.setFixedHeight(32)
+        self._user_input.setFixedHeight(34)
         lay.addWidget(self._user_input)
 
         # ── UI colour — renk çarkı ───────────────────────────────────────────
-        lay.addSpacing(4)
+        lay.addSpacing(6)
         clr_hdr = QHBoxLayout()
-        clr_hdr.addWidget(_lbl("UI COLOUR  —  drag the handle", 8,
-                               color=C.TEXT_DIM, align=Qt.AlignmentFlag.AlignLeft))
+        clr_hdr.addWidget(_lbl("UI COLOUR  —  drag the handle", 9,
+                               color=C.TEXT_DIM, letter_spacing=0.7, align=Qt.AlignmentFlag.AlignLeft))
         clr_hdr.addStretch()
         df_btn = HudButton("DEFAULT",
                             cuts=[("tl", 4), ("tr", 4), ("bl", 4), ("br", 4)],
-                            border=HU.BORDER, fill=HU.FILL, color=HU.DIM, font_size=7)
-        df_btn.setFixedSize(64, 20)
+                            border=HU.BORDER, fill=HU.FILL, color=HU.DIM, font_size=8)
+        df_btn.setFixedSize(72, 22)
         df_btn.clicked.connect(lambda: self._set_color(DEFAULT_UI_COLOR))
         clr_hdr.addWidget(df_btn)
         lay.addLayout(clr_hdr)
@@ -1929,24 +1983,24 @@ class CustomizeOverlay(QWidget):
         self._hex_input.setText(self._sel_color)
         self._hex_input.setPlaceholderText("#00d4ff   (custom hex colour)")
         self._hex_input.setFont(QFont("Courier New", 10))
-        self._hex_input.setFixedHeight(28)
+        self._hex_input.setFixedHeight(32)
         self._hex_input.textEdited.connect(self._on_hex_edited)
         lay.addWidget(self._hex_input)
 
-        lay.addSpacing(6)
+        lay.addSpacing(8)
         btn_row = QHBoxLayout(); btn_row.setSpacing(8)
 
         save_btn = HudButton("▸  APPLY CHANGES",
                               cuts=[("tl", 6), ("tr", 6), ("bl", 6), ("br", 6)],
-                              border=HU.BRIGHT, fill=HU.FILL2, color=HU.BRIGHT, font_size=9)
-        save_btn.setFixedHeight(34)
+                              border=HU.BRIGHT, fill=HU.FILL2, color=HU.BRIGHT, font_size=10)
+        save_btn.setFixedHeight(36)
         save_btn.clicked.connect(self._save)
         btn_row.addWidget(save_btn)
 
         cancel_btn = HudButton("CANCEL",
                                 cuts=[("tl", 6), ("tr", 6), ("bl", 6), ("br", 6)],
-                                border=HU.BORDER, fill=HU.FILL, color=HU.DIM, font_size=9)
-        cancel_btn.setFixedHeight(34)
+                                border=HU.BORDER, fill=HU.FILL, color=HU.DIM, font_size=10)
+        cancel_btn.setFixedHeight(36)
         cancel_btn.clicked.connect(self._cancel)
         btn_row.addWidget(cancel_btn)
         lay.addLayout(btn_row)
@@ -2012,19 +2066,29 @@ class ProfileEditorOverlay(QWidget):
                 border-radius: 6px;
             }}
         """)
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(20, 14, 20, 14)
-        lay.setSpacing(6)
+        from PyQt6.QtWidgets import QGraphicsDropShadowEffect
+        body_shadow = QGraphicsDropShadowEffect(self)
+        body_shadow.setBlurRadius(28)
+        body_shadow.setColor(QColor(0, 0, 0, 180))
+        body_shadow.setOffset(0, 6)
+        self.setGraphicsEffect(body_shadow)
 
-        def _lbl(txt, fs=9, bold=False, color=C.PRI, align=Qt.AlignmentFlag.AlignLeft):
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(24, 18, 24, 18)
+        lay.setSpacing(8)
+
+        def _lbl(txt, fs=10, bold=False, color=C.PRI, align=Qt.AlignmentFlag.AlignLeft, letter_spacing=0):
             w = QLabel(txt); w.setAlignment(align)
             w.setFont(QFont("Courier New", fs,
                             QFont.Weight.Bold if bold else QFont.Weight.Normal))
-            w.setStyleSheet(f"color: {color}; background: transparent;")
+            style = f"color: {color}; background: transparent;"
+            if letter_spacing:
+                style += f" letter-spacing: {letter_spacing}px;"
+            w.setStyleSheet(style)
             return w
 
         # Header
-        lay.addWidget(_lbl("PROFILE & SETTINGS", 11, True, HU.BRIGHT, Qt.AlignmentFlag.AlignCenter))
+        lay.addWidget(_lbl("PROFILE & SETTINGS", 13, True, HU.BRIGHT, Qt.AlignmentFlag.AlignCenter, letter_spacing=1.0))
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet(f"color: {C.BORDER}; margin: 2px 0;")
         lay.addWidget(sep)
@@ -2276,15 +2340,22 @@ class PluginManagerOverlay(QWidget):
                 border-radius: 6px;
             }}
         """)
+        from PyQt6.QtWidgets import QGraphicsDropShadowEffect
+        body_shadow = QGraphicsDropShadowEffect(self)
+        body_shadow.setBlurRadius(28)
+        body_shadow.setColor(QColor(0, 0, 0, 180))
+        body_shadow.setOffset(0, 6)
+        self.setGraphicsEffect(body_shadow)
+
         self.setFixedWidth(self._OW)
 
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(20, 16, 20, 16)
-        lay.setSpacing(6)
+        lay.setContentsMargins(24, 20, 24, 20)
+        lay.setSpacing(8)
 
         hdr = QLabel("🧩  PLUGIN MANAGER")
-        hdr.setFont(QFont("Courier New", 12, QFont.Weight.Bold))
-        hdr.setStyleSheet(f"color: {C.PRI}; background: transparent;")
+        hdr.setFont(QFont("Courier New", 14, QFont.Weight.Bold))
+        hdr.setStyleSheet(f"color: {C.PRI}; background: transparent; letter-spacing: 1.0px;")
         lay.addWidget(hdr)
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet(f"color: {C.BORDER}; margin: 2px 0;")
@@ -2292,18 +2363,18 @@ class PluginManagerOverlay(QWidget):
 
         if not plugins:
             empty = QLabel("No plugins found in /plugins.")
-            empty.setFont(QFont("Courier New", 8))
+            empty.setFont(QFont("Courier New", 9))
             empty.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent;")
             lay.addWidget(empty)
 
         for p in plugins:
             lay.addLayout(self._build_row(p))
 
-        lay.addSpacing(4)
+        lay.addSpacing(6)
         close_btn = HudButton("CLOSE",
                                cuts=[("tl", 6), ("tr", 6), ("bl", 6), ("br", 6)],
-                               border=HU.BORDER, fill=HU.FILL, color=HU.DIM, font_size=9)
-        close_btn.setFixedHeight(30)
+                               border=HU.BORDER, fill=HU.FILL, color=HU.DIM, font_size=10)
+        close_btn.setFixedHeight(34)
         close_btn.clicked.connect(self.hide)
         lay.addWidget(close_btn)
         self.adjustSize()
@@ -2532,26 +2603,36 @@ class RemoteKeyOverlay(QWidget):
                 border-radius: 14px;
             }}
         """)
+        from PyQt6.QtWidgets import QGraphicsDropShadowEffect
+        body_shadow = QGraphicsDropShadowEffect(self)
+        body_shadow.setBlurRadius(32)
+        body_shadow.setColor(QColor(0, 0, 0, 180))
+        body_shadow.setOffset(0, 8)
+        self.setGraphicsEffect(body_shadow)
+
         self._expiry          = time.time() + expiry_secs
         self._on_new_key      = None
         self._auto_login_url  = auto_login_url
         self._manual_url      = manual_url or url
 
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(24, 16, 24, 16)
-        lay.setSpacing(5)
+        lay.setContentsMargins(28, 22, 28, 22)
+        lay.setSpacing(8)
 
-        def _lbl(txt, fs=9, bold=False, color=C.PRI,
-                 align=Qt.AlignmentFlag.AlignCenter):
+        def _lbl(txt, fs=10, bold=False, color=C.PRI,
+                 align=Qt.AlignmentFlag.AlignCenter, letter_spacing=0):
             w = QLabel(txt)
             w.setAlignment(align)
             w.setFont(QFont("Courier New", fs,
                             QFont.Weight.Bold if bold else QFont.Weight.Normal))
-            w.setStyleSheet(f"color: {color}; background: transparent;")
+            style = f"color: {color}; background: transparent;"
+            if letter_spacing:
+                style += f" letter-spacing: {letter_spacing}px;"
+            w.setStyleSheet(style)
             w.setWordWrap(True)
             return w
 
-        lay.addWidget(_lbl("◈  REMOTE ACCESS", 12, True))
+        lay.addWidget(_lbl("◈  REMOTE ACCESS", 14, True, letter_spacing=1.2))
         sep = QFrame(); sep.setFrameShape(QFrame.Shape.HLine)
         sep.setStyleSheet(f"color: {C.BORDER}; margin: 1px 0;")
         lay.addWidget(sep)
@@ -2561,7 +2642,7 @@ class RemoteKeyOverlay(QWidget):
         self._qr_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._qr_label.setFixedSize(176, 176)
         self._qr_label.setStyleSheet(
-            "background: white; border-radius: 10px; padding: 4px;"
+            "background: white; border-radius: 12px; padding: 6px;"
         )
         qr_row = QHBoxLayout()
         qr_row.addStretch()
@@ -2571,17 +2652,17 @@ class RemoteKeyOverlay(QWidget):
 
         self._update_qr(auto_login_url)
 
-        lay.addWidget(_lbl("Scan with phone camera to connect instantly", 8, color=C.TEXT_DIM))
+        lay.addWidget(_lbl("Scan with phone camera to connect instantly", 9, color=C.TEXT_DIM))
 
         sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
         sep2.setStyleSheet(f"color: {C.BORDER}; margin: 1px 0;")
         lay.addWidget(sep2)
 
-        lay.addWidget(_lbl("Or enter manually:", 7, color=C.TEXT_DIM,
+        lay.addWidget(_lbl("Or enter manually:", 8, color=C.TEXT_DIM, letter_spacing=0.5,
                            align=Qt.AlignmentFlag.AlignLeft))
 
         self._url_lbl = QLabel(self._manual_url)
-        self._url_lbl.setFont(QFont("Courier New", 8))
+        self._url_lbl.setFont(QFont("Courier New", 9))
         self._url_lbl.setStyleSheet(f"color: {C.PRI_DIM}; background: transparent;")
         self._url_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._url_lbl.setTextInteractionFlags(
@@ -2589,20 +2670,20 @@ class RemoteKeyOverlay(QWidget):
         lay.addWidget(self._url_lbl)
 
         self._key_lbl = QLabel(key)
-        self._key_lbl.setFont(QFont("Courier New", 28, QFont.Weight.Bold))
+        self._key_lbl.setFont(QFont("Courier New", 30, QFont.Weight.Bold))
         self._key_lbl.setStyleSheet(f"""
             color: {C.ACC};
             background: {C.PANEL2};
             border: 1px solid {C.BORDER_B};
-            border-radius: 8px;
-            padding: 6px 4px;
-            letter-spacing: 10px;
+            border-radius: 10px;
+            padding: 8px 6px;
+            letter-spacing: 12px;
         """)
         self._key_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self._key_lbl)
 
         self._timer_lbl = QLabel()
-        self._timer_lbl.setFont(QFont("Courier New", 8))
+        self._timer_lbl.setFont(QFont("Courier New", 9))
         self._timer_lbl.setStyleSheet(f"color: {C.TEXT_MED}; background: transparent;")
         self._timer_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lay.addWidget(self._timer_lbl)
@@ -2610,8 +2691,8 @@ class RemoteKeyOverlay(QWidget):
         btn_row = QHBoxLayout(); btn_row.setSpacing(8)
         new_btn = HudButton("NEW KEY",
                              cuts=[("tl", 6), ("tr", 6), ("bl", 6), ("br", 6)],
-                             border=HU.BRIGHT, fill=HU.FILL2, color=HU.BRIGHT, font_size=8)
-        new_btn.setFixedHeight(32)
+                             border=HU.BRIGHT, fill=HU.FILL2, color=HU.BRIGHT, font_size=9)
+        new_btn.setFixedHeight(34)
         new_btn.clicked.connect(self._refresh_key)
         btn_row.addWidget(new_btn)
 

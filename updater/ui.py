@@ -1,20 +1,26 @@
-"""SONIC AI — Update UI Components
+"""SONIC AI — Update UI Components (Apple-Level).
 
-UpdatePopup: Shows available update info with Update Now / Later buttons
-DownloadProgressDialog: Shows download progress, verification, install trigger
+Two dialogs:
+    - UpdatePopup:          shows available update info, "Download & Install" + "Later"
+    - DownloadProgressDialog: download progress, verification, install trigger
+
+Both are full QDialog subclasses, use Apple design tokens, and follow the
+shared visual language used by bootstrap/ui.py and ui_wizard.py.
 """
 from __future__ import annotations
 
 import logging
 import threading
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-    QPushButton, QWidget, QTextEdit,
+    QPushButton, QWidget, QTextEdit, QFrame, QGraphicsDropShadowEffect,
+    QSizePolicy,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QThread
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QColor
 
 if TYPE_CHECKING:
     from updater import UpdateManifest
@@ -29,8 +35,8 @@ logger = logging.getLogger("UPDATER")
 class _DownloadWorker(QThread):
     """Background download with progress signals."""
     progress = pyqtSignal(float, str)  # percent, message
-    completed = pyqtSignal(str)  # file path
-    failed = pyqtSignal(str)  # error message
+    completed = pyqtSignal(str)        # file path
+    failed = pyqtSignal(str)           # error message
 
     def __init__(self, manifest: "UpdateManifest"):
         super().__init__()
@@ -51,133 +57,194 @@ class _DownloadWorker(QThread):
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# Update Popup
+# Base Dialog Shell — shared frame, shadow, title row
 # ═════════════════════════════════════════════════════════════════════════════
 
-class UpdatePopup(QDialog):
-    """Shows update available with version info and action buttons."""
+class _BaseDialog(QDialog):
+    """Shared frame used by both update dialogs — rounded, elevated, draggable."""
 
-    def __init__(self, manifest: "UpdateManifest", parent: QWidget = None):
+    def __init__(self, parent=None, *, title: str = "", subtitle: str = ""):
         super().__init__(parent)
-        self.manifest = manifest
-        self._setup_ui()
-
-    def _setup_ui(self):
-        from apple_design import (
-            Tokens, AppleButton, AppleCard, AppleProgressBar,
-            create_shadow, fade_in,
-        )
-
-        self.setWindowTitle("SONIC Apex — Update")
-        self.setFixedSize(460, 420)
         self.setWindowFlags(
-            Qt.WindowType.Dialog
-            | Qt.WindowType.WindowCloseButtonHint
-            | Qt.WindowType.WindowStaysOnTopHint
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.Dialog
         )
-        self.setStyleSheet(f"""
-            QDialog {{
-                background-color: {Tokens.BG_PRIMARY};
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setModal(True)
+
+        from apple_design import Tokens
+        self._drag_pos = None
+
+        # Outer layout (transparent — the frame below is the visible body)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+
+        # The actual visible window
+        self._body = QFrame(self)
+        self._body.setObjectName("UpdateBody")
+        self._body.setStyleSheet(f"""
+            QFrame#UpdateBody {{
+                background: {Tokens.BG_ELEVATED};
                 border: 1px solid {Tokens.BORDER_LIGHT};
                 border-radius: {Tokens.R_XL}px;
             }}
         """)
+        shadow = QGraphicsDropShadowEffect(self._body)
+        shadow.setBlurRadius(60)
+        shadow.setColor(QColor(0, 0, 0, 120))
+        shadow.setOffset(0, 10)
+        self._body.setGraphicsEffect(shadow)
+        outer.addWidget(self._body)
 
-        layout = QVBoxLayout(self)
-        layout.setSpacing(0)
-        layout.setContentsMargins(Tokens.XXL, Tokens.XXL, Tokens.XXL, Tokens.XL)
+        # Inner content layout
+        self._content = QVBoxLayout(self._body)
+        self._content.setContentsMargins(28, 22, 28, 22)
+        self._content.setSpacing(0)
 
-        # ── Title ─────────────────────────────────────────────────────────
-        if self.manifest.mandatory:
-            title = QLabel("UPDATE REQUIRED")
-            title.setStyleSheet(f"""
-                color: {Tokens.ERROR};
-                font-size: 18px;
-                font-weight: 700;
-                letter-spacing: 1px;
-                background: transparent;
-                border: none;
-            """)
+        # Optional title row (icon + title + subtitle)
+        if title or subtitle:
+            self._content.addLayout(self._build_title_row(title, subtitle))
+            self._content.addSpacing(18)
+
+    def _build_title_row(self, title: str, subtitle: str):
+        from apple_design import Tokens, _AppleDialogIcon
+
+        row = QHBoxLayout()
+        row.setSpacing(14)
+        row.setAlignment(Qt.AlignmentFlag.AlignVCenter)
+
+        # Determine icon variant from title text
+        tl = title.lower()
+        if "required" in tl:
+            variant = "error"
+        elif "update" in tl:
+            variant = "info"
         else:
-            title = QLabel("New Version Available")
-            title.setStyleSheet(f"""
-                color: {Tokens.TEXT_PRIMARY};
-                font-size: 18px;
-                font-weight: 700;
-                background: transparent;
-                border: none;
-            """)
-        title.setFont(Tokens.font(18, QFont.Weight.Bold))
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(title)
+            variant = "info"
+        icon = _AppleDialogIcon(variant, self._body)
+        icon.setFixedSize(36, 36)
+        row.addWidget(icon, 0, Qt.AlignmentFlag.AlignTop)
 
-        layout.addSpacing(Tokens.XL)
+        col = QVBoxLayout()
+        col.setSpacing(2)
 
+        title_lbl = QLabel(title)
+        title_lbl.setFont(Tokens.font(15, QFont.Weight.DemiBold))
+        title_lbl.setStyleSheet(
+            f"color: {Tokens.TEXT_PRIMARY}; background: transparent;"
+        )
+        col.addWidget(title_lbl)
+
+        if subtitle:
+            sub_lbl = QLabel(subtitle)
+            sub_lbl.setFont(Tokens.font(12))
+            sub_lbl.setStyleSheet(
+                f"color: {Tokens.TEXT_SECONDARY}; background: transparent;"
+            )
+            col.addWidget(sub_lbl)
+
+        row.addLayout(col, 1)
+        return row
+
+    # ── Drag support (only on the title area / body) ──────────────────────
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_pos = (
+                event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            )
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if self._drag_pos and event.buttons() & Qt.MouseButton.LeftButton:
+            self.move(event.globalPosition().toPoint() - self._drag_pos)
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        self._drag_pos = None
+        super().mouseReleaseEvent(event)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Update Popup
+# ═════════════════════════════════════════════════════════════════════════════
+
+class UpdatePopup(_BaseDialog):
+    """Shows update available with version info and action buttons."""
+
+    def __init__(self, manifest: "UpdateManifest", parent: QWidget = None):
+        super().__init__(parent,
+                         title=("Update Required" if manifest.mandatory
+                                else "Update Available"),
+                         subtitle="A new version of SONIC Apex is ready.")
+        self.manifest = manifest
+        self.setWindowTitle("SONIC Apex — Update")
+        self.setFixedSize(520, 460)
+        self._build_content()
+
+    def _build_content(self):
+        from apple_design import Tokens, AppleButton
         # ── Version Info Card ─────────────────────────────────────────────
         from version import APP_VERSION
 
-        ver_card = QWidget()
+        ver_card = QFrame()
+        ver_card.setObjectName("VersionCard")
         ver_card.setStyleSheet(f"""
-            QWidget {{
-                background: {Tokens.BG_ELEVATED};
+            QFrame#VersionCard {{
+                background: {Tokens.SURFACE_1};
                 border: 1px solid {Tokens.BORDER};
                 border-radius: {Tokens.R_MD}px;
             }}
         """)
-        ver_card_layout = QHBoxLayout(ver_card)
-        ver_card_layout.setContentsMargins(Tokens.XL, Tokens.LG, Tokens.XL, Tokens.LG)
-        ver_card_layout.setSpacing(Tokens.SM)
-        ver_card_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ver_layout = QHBoxLayout(ver_card)
+        ver_layout.setContentsMargins(20, 16, 20, 16)
+        ver_layout.setSpacing(12)
+        ver_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        old_ver = QLabel(f"v{APP_VERSION}")
-        old_ver.setFont(Tokens.font(13, QFont.Weight.Medium))
-        old_ver.setStyleSheet(f"color: {Tokens.TEXT_SECONDARY}; background: transparent; border: none;")
+        old_chip = self._version_chip(f"v{APP_VERSION}", Tokens.TEXT_SECONDARY, ghost=True)
+        arrow = QLabel("→")
+        arrow.setFont(Tokens.font(16, QFont.Weight.Bold))
+        arrow.setStyleSheet(
+            f"color: {Tokens.TEXT_TERTIARY}; background: transparent;"
+        )
+        new_chip = self._version_chip(f"v{self.manifest.version}", Tokens.CYAN, ghost=False)
 
-        arrow = QLabel("  →  ")
-        arrow.setFont(Tokens.font(14, QFont.Weight.Bold))
-        arrow.setStyleSheet(f"color: {Tokens.CYAN}; background: transparent; border: none;")
+        ver_layout.addWidget(old_chip)
+        ver_layout.addWidget(arrow)
+        ver_layout.addWidget(new_chip)
 
-        new_ver = QLabel(f"v{self.manifest.version}")
-        new_ver.setFont(Tokens.font(13, QFont.Weight.Bold))
-        new_ver.setStyleSheet(f"color: {Tokens.CYAN}; background: transparent; border: none;")
-
-        ver_card_layout.addWidget(old_ver)
-        ver_card_layout.addWidget(arrow)
-        ver_card_layout.addWidget(new_ver)
-
-        layout.addWidget(ver_card)
-
-        layout.addSpacing(Tokens.XL)
+        self._content.addWidget(ver_card)
+        self._content.addSpacing(18)
 
         # ── Release Notes Card ────────────────────────────────────────────
         if self.manifest.release_notes:
-            notes_header = QLabel("What's New")
-            notes_header.setFont(Tokens.font(11, QFont.Weight.SemiBold))
-            notes_header.setStyleSheet(f"""
-                color: {Tokens.TEXT_SECONDARY};
-                letter-spacing: 1px;
-                background: transparent;
-                border: none;
-            """)
-            layout.addWidget(notes_header)
+            notes_header = QLabel("WHAT'S NEW")
+            notes_header.setFont(Tokens.font(10, QFont.Weight.DemiBold))
+            notes_header.setStyleSheet(
+                f"color: {Tokens.TEXT_TERTIARY}; background: transparent; "
+                f"letter-spacing: 1.2px;"
+            )
+            self._content.addWidget(notes_header)
+            self._content.addSpacing(8)
 
-            layout.addSpacing(Tokens.SM)
-
-            notes_card = QWidget()
+            notes_card = QFrame()
+            notes_card.setObjectName("NotesCard")
             notes_card.setStyleSheet(f"""
-                QWidget {{
+                QFrame#NotesCard {{
                     background: {Tokens.SURFACE_1};
                     border: 1px solid {Tokens.BORDER};
                     border-radius: {Tokens.R_MD}px;
                 }}
             """)
-            notes_card_layout = QVBoxLayout(notes_card)
-            notes_card_layout.setContentsMargins(Tokens.LG, Tokens.MD, Tokens.LG, Tokens.MD)
+            notes_layout = QVBoxLayout(notes_card)
+            notes_layout.setContentsMargins(14, 10, 14, 10)
+            notes_layout.setSpacing(0)
 
             notes = QTextEdit()
             notes.setPlainText(self.manifest.release_notes[:1500])
             notes.setReadOnly(True)
-            notes.setMaximumHeight(80)
+            notes.setFixedHeight(110)
             notes.setFont(Tokens.font(12))
             notes.setStyleSheet(f"""
                 QTextEdit {{
@@ -188,46 +255,77 @@ class UpdatePopup(QDialog):
                     font-size: 12px;
                     line-height: 1.5;
                 }}
+                QScrollBar:vertical {{
+                    background: {Tokens.SURFACE_2};
+                    width: 8px;
+                    border-radius: 4px;
+                }}
+                QScrollBar::handle:vertical {{
+                    background: {Tokens.SURFACE_3};
+                    border-radius: 4px;
+                    min-height: 24px;
+                }}
             """)
-            notes_card_layout.addWidget(notes)
-            layout.addWidget(notes_card)
+            notes_layout.addWidget(notes)
+            self._content.addWidget(notes_card)
+            self._content.addSpacing(18)
 
-        layout.addSpacing(Tokens.XL)
-        layout.addStretch()
+        # Spacer
+        self._content.addStretch(1)
 
         # ── Buttons ───────────────────────────────────────────────────────
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(Tokens.SM)
+        btn_layout.setSpacing(10)
 
-        update_btn = AppleButton("Download & Install", style="primary")
+        update_btn = AppleButton(
+            "Install Now" if self.manifest.mandatory else "Download & Install",
+            style="primary",
+        )
+        update_btn.setFixedHeight(40)
         update_btn.clicked.connect(self._on_update)
         btn_layout.addWidget(update_btn, 2)
 
         if not self.manifest.mandatory:
             later_btn = AppleButton("Later", style="secondary")
+            later_btn.setFixedHeight(40)
             later_btn.clicked.connect(self._on_later)
             btn_layout.addWidget(later_btn, 1)
 
-        layout.addLayout(btn_layout)
-
-        layout.addSpacing(Tokens.MD)
+        self._content.addLayout(btn_layout)
 
         # ── Release Page Link ─────────────────────────────────────────────
         if self.manifest.release_page_url:
-            link = QLabel(f'<a href="{self.manifest.release_page_url}" '
-                          f'style="color: {Tokens.TEXT_TERTIARY}; '
-                          f'text-decoration: none; font-size: 11px;">'
-                          f'View release page</a>')
+            self._content.addSpacing(10)
+            link = QLabel(
+                f'<a href="{self.manifest.release_page_url}" '
+                f'style="color: {Tokens.TEXT_TERTIARY}; '
+                f'text-decoration: none; font-size: 11px;">'
+                f'View release page →</a>'
+            )
             link.setOpenExternalLinks(True)
             link.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            link.setStyleSheet(f"""
-                QLabel {{
-                    background: transparent;
-                    border: none;
-                    padding: 2px;
-                }}
-            """)
-            layout.addWidget(link)
+            link.setStyleSheet(
+                f"color: {Tokens.TEXT_TERTIARY}; background: transparent; border: none;"
+            )
+            self._content.addWidget(link)
+
+    def _version_chip(self, text: str, color: str, ghost: bool) -> QLabel:
+        from apple_design import Tokens
+        chip = QLabel(text)
+        chip.setFont(Tokens.font(13, QFont.Weight.DemiBold))
+        if ghost:
+            chip.setStyleSheet(
+                f"color: {Tokens.TEXT_SECONDARY}; background: {Tokens.SURFACE_2}; "
+                f"border: 1px solid {Tokens.BORDER}; border-radius: {Tokens.R_SM}px; "
+                f"padding: 6px 14px;"
+            )
+        else:
+            chip.setStyleSheet(
+                f"color: {color}; background: {color}1a; "
+                f"border: 1px solid {color}55; border-radius: {Tokens.R_SM}px; "
+                f"padding: 6px 14px;"
+            )
+        return chip
 
     def _on_update(self):
         self.accept()
@@ -246,83 +344,67 @@ class UpdatePopup(QDialog):
 # Download Progress Dialog
 # ═════════════════════════════════════════════════════════════════════════════
 
-class DownloadProgressDialog(QDialog):
+class DownloadProgressDialog(_BaseDialog):
     """Shows download progress, verification, and install button."""
 
     def __init__(self, manifest: "UpdateManifest", parent: QWidget = None):
-        super().__init__(parent)
+        super().__init__(parent, title="Updating SONIC", subtitle="")
         self.manifest = manifest
         self.worker = None
-        self._setup_ui()
+        self._install_path: str | None = None
+        self.setWindowTitle("SONIC Apex — Updating")
+        self.setFixedSize(480, 300)
+        self._build_content()
 
-    def _setup_ui(self):
+    def _build_content(self):
         from apple_design import Tokens, AppleButton, AppleProgressBar
 
-        self.setWindowTitle("SONIC Apex — Updating")
-        self.setFixedSize(440, 260)
-        self.setWindowFlags(
-            Qt.WindowType.Dialog
-            | Qt.WindowType.WindowCloseButtonHint
-        )
-        self.setStyleSheet(f"""
-            QDialog {{
-                background-color: {Tokens.BG_PRIMARY};
-                border: 1px solid {Tokens.BORDER_LIGHT};
-                border-radius: {Tokens.R_XL}px;
-            }}
-        """)
-
-        layout = QVBoxLayout(self)
-        layout.setSpacing(0)
-        layout.setContentsMargins(Tokens.XXL, Tokens.XL, Tokens.XXL, Tokens.LG)
-
         # ── Status ────────────────────────────────────────────────────────
-        self.status_label = QLabel(f"Downloading v{self.manifest.version}...")
-        self.status_label.setFont(Tokens.font(16, QFont.Weight.SemiBold))
-        self.status_label.setStyleSheet(f"""
-            color: {Tokens.TEXT_PRIMARY};
-            background: transparent;
-            border: none;
-        """)
+        self.status_label = QLabel(f"Downloading v{self.manifest.version}…")
+        self.status_label.setFont(Tokens.font(16, QFont.Weight.DemiBold))
+        self.status_label.setStyleSheet(
+            f"color: {Tokens.TEXT_PRIMARY}; background: transparent;"
+        )
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.status_label)
+        self._content.addWidget(self.status_label)
 
-        layout.addSpacing(Tokens.LG)
+        self._content.addSpacing(14)
 
         # ── Progress Bar ──────────────────────────────────────────────────
         self.progress_bar = AppleProgressBar()
         self.progress_bar.setValue(0)
-        layout.addWidget(self.progress_bar)
+        self._content.addWidget(self.progress_bar)
 
-        layout.addSpacing(Tokens.MD)
+        self._content.addSpacing(10)
 
         # ── Detail Label ──────────────────────────────────────────────────
-        self.detail_label = QLabel("Preparing...")
+        self.detail_label = QLabel("Preparing…")
         self.detail_label.setFont(Tokens.font(12))
-        self.detail_label.setStyleSheet(f"""
-            color: {Tokens.TEXT_SECONDARY};
-            background: transparent;
-            border: none;
-        """)
+        self.detail_label.setStyleSheet(
+            f"color: {Tokens.TEXT_SECONDARY}; background: transparent;"
+        )
         self.detail_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(self.detail_label)
+        self._content.addWidget(self.detail_label)
 
-        layout.addStretch()
+        self._content.addStretch(1)
 
         # ── Buttons ───────────────────────────────────────────────────────
         btn_layout = QHBoxLayout()
-        btn_layout.setSpacing(Tokens.SM)
+        btn_layout.setSpacing(10)
 
         self.cancel_btn = AppleButton("Cancel", style="secondary")
+        self.cancel_btn.setFixedHeight(38)
         self.cancel_btn.clicked.connect(self._on_cancel)
         btn_layout.addWidget(self.cancel_btn)
 
         self.retry_btn = AppleButton("Retry", style="ghost")
+        self.retry_btn.setFixedHeight(38)
         self.retry_btn.clicked.connect(self._on_retry)
         self.retry_btn.setVisible(False)
         btn_layout.addWidget(self.retry_btn)
 
         self.install_btn = AppleButton("Install Now", style="primary")
+        self.install_btn.setFixedHeight(38)
         self.install_btn.setStyleSheet(f"""
             QPushButton {{
                 background: {Tokens.SUCCESS};
@@ -343,7 +425,7 @@ class DownloadProgressDialog(QDialog):
         self.install_btn.setVisible(False)
         btn_layout.addWidget(self.install_btn)
 
-        layout.addLayout(btn_layout)
+        self._content.addLayout(btn_layout)
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -351,8 +433,8 @@ class DownloadProgressDialog(QDialog):
 
     def _start_download(self):
         self.progress_bar.setValue(0)
-        self.status_label.setText(f"Downloading v{self.manifest.version}...")
-        self.detail_label.setText("Starting download...")
+        self.status_label.setText(f"Downloading v{self.manifest.version}…")
+        self.detail_label.setText("Starting download…")
         self.cancel_btn.setVisible(True)
         self.retry_btn.setVisible(False)
         self.install_btn.setVisible(False)
@@ -368,17 +450,14 @@ class DownloadProgressDialog(QDialog):
         self.detail_label.setText(msg)
 
     def _on_completed(self, path: str):
-        self.status_label.setText("Verifying download...")
-        self.detail_label.setText("SHA-256 check...")
+        self.status_label.setText("Verifying download…")
+        self.detail_label.setText("SHA-256 check…")
         self.progress_bar.setValue(100)
 
         from updater import get_update_manager
         manager = get_update_manager()
 
-        if manager.verify_artifact(
-            __import__("pathlib").Path(path),
-            self.manifest.sha256,
-        ):
+        if manager.verify_artifact(Path(path), self.manifest.sha256):
             self.status_label.setText("Ready to install")
             self.detail_label.setText(f"New version v{self.manifest.version} verified")
             self.cancel_btn.setVisible(False)
@@ -399,17 +478,14 @@ class DownloadProgressDialog(QDialog):
     def _on_install(self):
         from updater import get_update_manager
         manager = get_update_manager()
-        self.status_label.setText("Installing...")
+        self.status_label.setText("Installing…")
         self.detail_label.setText("Launching updater — SONIC will restart")
         self.install_btn.setEnabled(False)
         self.cancel_btn.setVisible(False)
 
         # Install in background thread so UI doesn't freeze
         def _do_install():
-            manager.install_update(
-                __import__("pathlib").Path(self._install_path),
-                self.manifest,
-            )
+            manager.install_update(Path(self._install_path), self.manifest)
 
         threading.Thread(target=_do_install, daemon=True).start()
 

@@ -1633,6 +1633,8 @@ class SonicLive:
         self._context_injected = False  # True if context was injected on this session
 
         self._enhanced_live = True  # affective dialog + proactive audio; auto-disabled if the server rejects them
+        self._use_live_audio = True  # False → skip live API, use text input (auto-set if 1007 / model unavailable)
+        self._audio_model_disabled = False  # True once we've fallen back from live audio
         _core_names = {t["name"] for t in TOOL_DECLARATIONS}
         self._plugin_registry = discover_plugins(
             plugins_dir=Path(__file__).resolve().parent / "plugins",
@@ -3362,6 +3364,23 @@ class SonicLive:
                 _resumed_with = self._resume_handle is not None
                 config = self._build_config()
 
+                # If the audio model was disabled (1007 = not accessible on this key),
+                # we can't use the live API at all. Break out of the live loop and
+                # keep the app running so the user can still use keyboard / typed
+                # input. This prevents the previous reconnect-storm bug.
+                use_live = getattr(self, "_use_live_audio", True)
+                if not use_live:
+                    print("[SONIC] Live audio disabled — staying in keyboard/text mode.")
+                    self.ui.write_log(
+                        "SYS: Live audio unavailable — switched to keyboard text mode."
+                    )
+                    self.ui.set_state("LISTENING")
+                    # Yield to the event loop so the user sees the state change,
+                    # then back off so we don't tight-loop checking this condition.
+                    await asyncio.sleep(60)
+                    self._conn_backoff = 60
+                    continue
+
                 # Fresh client on every reconnect — avoids stale HTTP session state
                 # v1alpha carries the enhanced audio features (affective dialog,
                 # proactive audio); if they get rejected we fall back to v1beta.
@@ -3483,7 +3502,7 @@ class SonicLive:
                     continue
 
                 # Invalid API key — stop hammering the API, prompt re-configuration
-                if "API key not valid" in err_str or "1007" in err_str:
+                if "API key not valid" in err_str:
                     self.ui.write_log("ERR: API key invalid — please re-enter your key.")
                     self.ui.set_state("SLEEPING")
                     self.ui.prompt_reconfig()
@@ -3492,6 +3511,42 @@ class SonicLive:
                     print("[SONIC] New API key saved — reconnecting...")
                     _conn_backoff = 3
                     continue
+
+                # Audio model unavailable (1007 = "model doesn't support audio content
+                # type"). This is NOT an API-key issue — the key is fine, the model
+                # just isn't accessible on this account (common with free tier).
+                # STOP looping: switch to text-only + STT/TTS pipeline instead.
+                is_audio_model_error = (
+                    "1007" in err_str
+                    or "CONTENT_TYPE_AUDIO" in err_str
+                    or "not supported for this model configuration" in err_str
+                    or ("audio" in err_str.lower()
+                        and "not supported" in err_str.lower())
+                )
+                if is_audio_model_error:
+                    if not getattr(self, "_audio_model_disabled", False):
+                        self._audio_model_disabled = True
+                        self.ui.write_log(
+                            "ERR: Live audio model unavailable on this API key. "
+                            "Switching to text-only mode with local STT/TTS."
+                        )
+                        print(
+                            "[SONIC] Live audio model NOT accessible on this API key "
+                            f"({LIVE_MODEL}). Falling back to text mode + "
+                            "STT (Whisper) + TTS (Edge)."
+                        )
+                        # Tell the next connect to skip the audio model entirely
+                        self._use_live_audio = False
+                        # Reset backoff so we connect once cleanly in text mode
+                        self._conn_backoff = 0
+                        continue
+                    else:
+                        # Already disabled; the next connect should be in text mode
+                        # but somehow hit audio again. Just wait it out.
+                        print("[SONIC] Audio mode disabled, waiting before retry.")
+                        self._conn_backoff = min(
+                            getattr(self, "_conn_backoff", 3) * 2, 60)
+                        continue
 
                 # Network / timeout errors — log clearly and back off
                 is_net_err = any(k in err_str for k in (

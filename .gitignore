@@ -5,6 +5,31 @@ installer_output/
 *.exe
 *.pkg
 *.pyz
+*.whl
+*.tar.gz
+*.zip
+*.spec
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+.tox/
+
+# Logs
+*.log
+dashboard.err
+dashboard.out
+_out.txt
+run_output.txt
+run_test.py
+test_output.txt
+
+# Temp
+tmp*.txt
+*.tmp
+*.bak
 
 # Python
 __pycache__/
